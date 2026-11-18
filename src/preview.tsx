@@ -2,10 +2,22 @@ import { Activity } from 'lucide-react'
 import { demo, metrics, templates } from './demo'
 
 type Template = typeof templates[number]
+export type StickerData = {
+  title: string
+  distance: string
+  duration: string
+  pace: string
+}
 
-export function Metrics() {
+export function Metrics({ data }: { data?: StickerData }) {
+  const visibleMetrics = data ? [
+    { label: 'Distância', value: data.distance, unit: 'km' },
+    { label: 'Tempo', value: data.duration, unit: '' },
+    { label: 'Ritmo médio', value: data.pace, unit: 'min/km' },
+  ] : metrics
+
   return <dl className="metrics">
-    {metrics.map(({ label, value, unit }) => <div key={label}>
+    {visibleMetrics.map(({ label, value, unit }) => <div key={label}>
       <dt>{label}</dt><dd>{value} <small>{unit}</small></dd>
     </div>)}
   </dl>
@@ -19,10 +31,10 @@ export function CourseArt() {
   </svg>
 }
 
-export function Sticker({ template = 'Performance' }: { template?: Template }) {
+export function Sticker({ template = 'Performance', data }: { template?: Template; data?: StickerData }) {
   return <div className={`sticker sticker-${template.toLowerCase()}`}>
     <span className="sticker-brand"><Activity size={18} aria-hidden="true" /> RUNLAB</span>
     <CourseArt />
-    <div className="sticker-info"><p>{demo.title}</p><Metrics /></div>
+    <div className="sticker-info"><p>{data?.title ?? demo.title}</p><Metrics data={data} /></div>
   </div>
 }

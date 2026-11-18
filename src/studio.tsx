@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
-import { ChevronDown, Download, ScanLine } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Calculator, ChevronDown, Download, ScanLine } from 'lucide-react'
 import { demo, templates } from './demo'
 import { Sticker } from './preview'
+import { calculateAveragePace, formatDistance, formatPace, parseDistanceKm, parseDurationSeconds } from './pace'
 
 function Group({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {
   return <details className="panel" open={open}>
@@ -10,34 +11,75 @@ function Group({ title, children, open = false }: { title: string; children: Rea
   </details>
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function ReadonlyField({ label, value }: { label: string; value: string }) {
   return <label className="field">{label}<input value={value} readOnly /></label>
 }
 
 export function Studio() {
+  const [distance, setDistance] = useState(demo.distance)
+  const [duration, setDuration] = useState(demo.duration)
+  const parsedDistance = parseDistanceKm(distance)
+  const parsedDuration = parseDurationSeconds(duration)
+  const calculation = calculateAveragePace(distance, duration)
+  const pace = calculation.ok ? formatPace(calculation.paceSeconds) : '—'
+  const stickerData = {
+    title: demo.title,
+    distance: parsedDistance === null ? '—' : formatDistance(parsedDistance),
+    duration: parsedDuration === null ? '—' : duration.trim(),
+    pace,
+  }
+
   return <>
     <div className="page-heading">
       <span className="eyebrow">RUNLAB Studio</span>
       <h1>Estúdio de figurinhas</h1>
-      <p>Explore o layout com uma corrida fictícia. A edição e a exportação estão em desenvolvimento.</p>
+      <p>Informe sua distância e seu tempo para montar a prévia. Modelos e exportação continuam em desenvolvimento.</p>
     </div>
     <div className="studio-layout">
       <aside className="preview-panel panel" aria-label="Prévia da figurinha">
         <div className="preview-heading"><h2><ScanLine size={18} aria-hidden="true" /> Prévia</h2><span>Story · 9:16</span></div>
-        <Sticker />
-        <p>Dados demonstrativos · Performance</p>
+        <Sticker data={stickerData} />
+        <p aria-live="polite">Atualização em tempo real · Performance</p>
       </aside>
       <div className="controls" aria-label="Controles do estúdio">
         <Group title="Dados da corrida" open>
           <div className="field-grid">
-            <Field label="Distância (km)" value={demo.distance} />
-            <Field label="Tempo" value={demo.duration} />
-            <Field label="Ritmo médio (min/km)" value={demo.pace} />
-            <Field label="Frequência cardíaca opcional (bpm)" value={demo.heartRate} />
-            <Field label="Elevação opcional (m)" value={demo.elevation} />
-            <Field label="Data opcional" value="15/11/2026" />
-            <Field label="Título opcional" value={demo.title} />
+            <label className="field">
+              Distância (km)
+              <input
+                aria-describedby={calculation.ok || !calculation.distanceError ? undefined : 'distance-error'}
+                aria-invalid={!calculation.ok && Boolean(calculation.distanceError)}
+                inputMode="decimal"
+                onChange={(event) => setDistance(event.target.value)}
+                placeholder="Ex.: 10 ou 2,5"
+                value={distance}
+              />
+              {!calculation.ok && calculation.distanceError && <span className="field-error" id="distance-error">{calculation.distanceError}</span>}
+            </label>
+            <label className="field">
+              Tempo
+              <input
+                aria-describedby={!calculation.ok && calculation.durationError ? 'duration-error duration-help' : 'duration-help'}
+                aria-invalid={!calculation.ok && Boolean(calculation.durationError)}
+                inputMode="numeric"
+                onChange={(event) => setDuration(event.target.value)}
+                placeholder="Ex.: 54:40 ou 1:00:00"
+                value={duration}
+              />
+              <span className="field-help" id="duration-help">Formatos aceitos: MM:SS ou H:MM:SS.</span>
+              {!calculation.ok && calculation.durationError && <span className="field-error" id="duration-error">{calculation.durationError}</span>}
+            </label>
+            <div className="field pace-field">
+              <span>Ritmo médio (min/km)</span>
+              <span className="calculated-value"><Calculator size={16} aria-hidden="true" />{pace}</span>
+              <span className="field-help">Calculado automaticamente.</span>
+            </div>
+            <ReadonlyField label="Frequência cardíaca opcional (bpm)" value={demo.heartRate} />
+            <ReadonlyField label="Elevação opcional (m)" value={demo.elevation} />
+            <ReadonlyField label="Data opcional" value="15/11/2026" />
+            <ReadonlyField label="Título opcional" value={demo.title} />
           </div>
+          <p className="calculation-note">O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.</p>
         </Group>
         <Group title="Modelos" open>
           <div className="template-grid">{templates.map((template) =>
