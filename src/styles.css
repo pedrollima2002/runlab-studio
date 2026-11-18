@@ -94,6 +94,12 @@ details[open] > summary svg { transform: rotate(180deg); }
 .field { display: flex; flex-direction: column; gap: .2rem; font-size: .78rem; color: var(--muted); }
 .field :is(input, select) { min-height: 44px; min-width: 0; width: 100%; border: 1px solid #465163; border-radius: .55rem; padding: .5rem; color: #e6edf6; background: #0e131a; font-size: .9rem; }
 .field input::placeholder { color: var(--muted); opacity: 1; }
+.field input[aria-invalid="true"] { border-color: #fb7185; }
+.field-help, .field-error { font-size: .72rem; line-height: 1.35; }
+.field-help { color: var(--muted); }
+.field-error { color: #fda4af; }
+.calculated-value { min-height: 44px; display: flex; align-items: center; gap: .45rem; border: 1px solid #694329; border-radius: .55rem; padding: .5rem; color: #ffb27d; background: #23170f; font-size: 1rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+.calculation-note { margin-top: .85rem; border-left: 3px solid var(--accent); padding: .65rem .75rem; color: var(--muted); background: #0e131a; font-size: .8rem; }
 .template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
 .template-grid button { border: 1px solid #465163; border-radius: .6rem; padding: .38rem; font-size: clamp(.6rem, 2.6vw, .85rem); }
 .template-grid .current-template { border-color: var(--accent); }

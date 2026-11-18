@@ -10,15 +10,16 @@ Use Node.js 24 LTS ou Node.js 22.12+ da série 22 e npm. Na pasta do projeto:
 
 ```sh
 npm ci
+npm test
 npm run dev
 ```
 
-`npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Lint e build não substituem os testes visuais, funcionais ou de acessibilidade.
+`npm test` cobre parsing de distância e tempo, validação e cálculo de ritmo. `npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Os testes automatizados, lint e build não substituem os testes visuais, funcionais ou de acessibilidade.
 
 | Rota | Tela |
 | --- | --- |
 | `/` | Início com amostras e links para os dois módulos |
-| `/estudio` | Prévia 9:16 e painéis demonstrativos |
+| `/estudio` | Editor manual de distância e tempo, cálculo de ritmo e prévia 9:16 |
 | `/analises` | Métricas e gráfico ilustrativos |
 | `/historico` | Estado vazio |
 | `/perfil` | Preferências e zonas cardíacas |
