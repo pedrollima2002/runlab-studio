@@ -1,18 +1,25 @@
-import { useState, type ReactNode } from 'react'
-import { Calculator, ChevronDown, Download, RotateCcw, ScanLine } from 'lucide-react'
-import { demo, templates } from './demo'
+import { useEffect, useReducer, useState, type ReactNode } from 'react'
+import { Calculator, ChevronDown, Download, Redo2, RotateCcw, ScanLine, Trash2, Undo2 } from 'lucide-react'
+import { templates } from './demo'
 import { Sticker, type StickerData, type StickerMetric } from './preview'
 import { calculateAveragePace, formatDistance, formatPace, parseDistanceKm, parseDurationSeconds } from './pace'
 import {
   accentColors,
   compatibleTextColors,
-  defaultAppearance,
+  createDefaultEditorState,
+  createEditorHistory,
+  DRAFT_STORAGE_KEY,
+  editorHistoryReducer,
   formatActivityDate,
+  parseDraft,
   resetTemplateColors,
+  restoreDefaultAppearance,
   selectTemplate,
+  serializeDraft,
   setMetricVisibility,
   textColors,
   type ActivityData,
+  type EditorState,
   type MetricKey,
   type PreviewMode,
   type StickerLayout,
@@ -33,6 +40,22 @@ const layoutOptions: { value: StickerLayout; label: string; description: string 
   { value: 'featured', label: 'Métrica em destaque', description: 'Distância com maior hierarquia.' },
 ]
 
+type DraftStartup = { pending: EditorState | null; hasStored: boolean; message: string }
+
+function loadDraftStartup(): DraftStartup {
+  try {
+    const stored = window.localStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!stored) return { pending: null, hasStored: false, message: '' }
+
+    const parsed = parseDraft(stored)
+    return parsed.ok
+      ? { pending: parsed.state, hasStored: true, message: '' }
+      : { pending: null, hasStored: true, message: `${parsed.reason} O Estúdio foi aberto com os valores padrão.` }
+  } catch {
+    return { pending: null, hasStored: false, message: 'O armazenamento local não está disponível neste navegador.' }
+  }
+}
+
 function Group({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {
   return <details className="panel" open={open}>
     <summary>{title}<ChevronDown size={18} aria-hidden="true" /></summary>
@@ -41,16 +64,46 @@ function Group({ title, children, open = false }: { title: string; children: Rea
 }
 
 export function Studio() {
-  const [activity, setActivity] = useState<ActivityData>({
-    distance: demo.distance,
-    duration: demo.duration,
-    title: demo.title,
-    date: '2026-11-15',
-    heartRate: demo.heartRate,
-    elevation: demo.elevation,
-  })
-  const [appearance, setAppearance] = useState(defaultAppearance)
+  const [draftStartup] = useState(loadDraftStartup)
+  const [history, dispatchHistory] = useReducer(editorHistoryReducer, undefined, createEditorHistory)
+  const [saveEnabled, setSaveEnabled] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState<EditorState | null>(draftStartup.pending)
+  const [hasStoredDraft, setHasStoredDraft] = useState(draftStartup.hasStored)
+  const [statusMessage, setStatusMessage] = useState(draftStartup.message)
   const [visibilityMessage, setVisibilityMessage] = useState('')
+  const { activity, appearance } = history.present
+
+  useEffect(() => {
+    if (!saveEnabled) return
+
+    const timeout = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(DRAFT_STORAGE_KEY, serializeDraft(history.present))
+        setHasStoredDraft(true)
+        setStatusMessage('Rascunho salvo somente neste navegador e dispositivo.')
+      } catch {
+        setSaveEnabled(false)
+        setStatusMessage('Não foi possível salvar o rascunho neste navegador.')
+      }
+    }, 300)
+
+    return () => window.clearTimeout(timeout)
+  }, [history.present, saveEnabled])
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      const target = event.target
+      if (target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable)) return
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+
+      event.preventDefault()
+      if (event.shiftKey) dispatchHistory({ type: 'redo' })
+      else dispatchHistory({ type: 'undo' })
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
 
   const parsedDistance = parseDistanceKm(activity.distance)
   const parsedDuration = parseDurationSeconds(activity.duration)
@@ -80,15 +133,68 @@ export function Studio() {
   }
 
   function updateActivity(field: keyof ActivityData, value: string) {
-    setActivity((current) => ({ ...current, [field]: value }))
+    dispatchHistory({
+      type: 'update',
+      group: `activity.${field}`,
+      next: { ...history.present, activity: { ...activity, [field]: value } },
+    })
+  }
+
+  function endTyping() {
+    dispatchHistory({ type: 'end-group' })
+  }
+
+  function updateAppearance(nextAppearance: typeof appearance) {
+    dispatchHistory({ type: 'update', next: { ...history.present, appearance: nextAppearance } })
   }
 
   function updateVisibility(metric: MetricKey, visible: boolean) {
-    setAppearance((current) => {
-      const result = setMetricVisibility(current, metric, visible, availableMetrics)
-      setVisibilityMessage(result.blocked ? 'Mantenha pelo menos uma métrica visível na figurinha.' : '')
-      return result.appearance
-    })
+    const result = setMetricVisibility(appearance, metric, visible, availableMetrics)
+    setVisibilityMessage(result.blocked ? 'Mantenha pelo menos uma métrica visível na figurinha.' : '')
+    if (!result.blocked) updateAppearance(result.appearance)
+  }
+
+  function undo() {
+    if (history.past.length === 0) return
+    dispatchHistory({ type: 'undo' })
+    setStatusMessage('Alteração desfeita.')
+  }
+
+  function redo() {
+    if (history.future.length === 0) return
+    dispatchHistory({ type: 'redo' })
+    setStatusMessage('Alteração refeita.')
+  }
+
+  function recoverDraft() {
+    if (!pendingDraft) return
+    dispatchHistory({ type: 'update', next: pendingDraft })
+    setPendingDraft(null)
+    setStatusMessage('Rascunho recuperado. O pace foi recalculado a partir da distância e do tempo.')
+  }
+
+  function startNewEdition() {
+    if (!window.confirm('Iniciar uma nova figurinha e descartar os dados atuais do editor?')) return
+    dispatchHistory({ type: 'update', next: createDefaultEditorState() })
+    setPendingDraft(null)
+    setStatusMessage('Nova figurinha iniciada. O rascunho salvo não foi excluído.')
+  }
+
+  function restoreAppearance() {
+    dispatchHistory({ type: 'update', next: restoreDefaultAppearance(history.present) })
+    setStatusMessage('A aparência padrão foi restaurada; os dados da corrida foram preservados.')
+  }
+
+  function deleteDraft() {
+    if (!window.confirm('Excluir o rascunho salvo neste navegador?')) return
+    try {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY)
+      setHasStoredDraft(false)
+      setPendingDraft(null)
+      setStatusMessage('Rascunho local excluído.')
+    } catch {
+      setStatusMessage('Não foi possível excluir o rascunho local.')
+    }
   }
 
   return <>
@@ -107,6 +213,50 @@ export function Studio() {
       </aside>
 
       <div className="controls" aria-label="Controles do estúdio">
+        {pendingDraft && <section className="recovery-panel panel" aria-labelledby="recovery-title">
+          <div><span className="eyebrow">Rascunho local</span><h2 id="recovery-title">Continuar de onde você parou?</h2><p>Existe uma edição salva somente neste navegador. Escolha recuperá-la ou começar com os valores padrão.</p></div>
+          <div className="recovery-actions">
+            <button className="button primary" onClick={recoverDraft} type="button">Recuperar rascunho</button>
+            <button className="button" onClick={startNewEdition} type="button">Começar nova edição</button>
+          </div>
+        </section>}
+
+        <section className="history-toolbar panel" aria-label="Histórico de edição">
+          <div className="history-actions">
+            <button className="button" disabled={history.past.length === 0} onClick={undo} type="button"><Undo2 size={17} aria-hidden="true" />Desfazer</button>
+            <button className="button" disabled={history.future.length === 0} onClick={redo} type="button"><Redo2 size={17} aria-hidden="true" />Refazer</button>
+          </div>
+          <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> fora dos campos · use <kbd>Shift</kbd> para refazer</p>
+        </section>
+
+        <p className="editor-feedback" role="status" aria-live="polite">{statusMessage}</p>
+
+        <Group title="Rascunho e restauração" open>
+          <div className="draft-controls">
+            <label className="save-toggle">
+              <input
+                checked={saveEnabled}
+                disabled={Boolean(pendingDraft)}
+                onChange={(event) => {
+                  setSaveEnabled(event.target.checked)
+                  setStatusMessage(event.target.checked
+                    ? 'Salvamento local ativado.'
+                    : 'Salvamento local desativado. Um rascunho existente foi mantido.')
+                }}
+                type="checkbox"
+              />
+              <span><strong>Salvar rascunho neste dispositivo</strong><small>Os dados ficam somente neste navegador, sem conta ou sincronização.</small></span>
+            </label>
+            {pendingDraft && <p className="field-help">Escolha primeiro se deseja recuperar o rascunho encontrado.</p>}
+            <div className="draft-actions">
+              <button className="button" onClick={restoreAppearance} type="button"><RotateCcw size={16} aria-hidden="true" />Restaurar padrão</button>
+              <button className="button" onClick={startNewEdition} type="button">Nova figurinha</button>
+              <button className="button danger-button" disabled={!hasStoredDraft} onClick={deleteDraft} type="button"><Trash2 size={16} aria-hidden="true" />Excluir rascunho</button>
+            </div>
+            <p className="field-help">“Restaurar padrão” preserva os dados da corrida. “Nova figurinha” pede confirmação e reinicia dados e aparência.</p>
+          </div>
+        </Group>
+
         <Group title="Dados da corrida" open>
           <div className="field-grid">
             <label className="field">
@@ -115,6 +265,7 @@ export function Studio() {
                 aria-describedby={calculation.ok || !calculation.distanceError ? undefined : 'distance-error'}
                 aria-invalid={!calculation.ok && Boolean(calculation.distanceError)}
                 inputMode="decimal"
+                onBlur={endTyping}
                 onChange={(event) => updateActivity('distance', event.target.value)}
                 placeholder="Ex.: 10 ou 2,5"
                 value={activity.distance}
@@ -127,6 +278,7 @@ export function Studio() {
                 aria-describedby={!calculation.ok && calculation.durationError ? 'duration-error duration-help' : 'duration-help'}
                 aria-invalid={!calculation.ok && Boolean(calculation.durationError)}
                 inputMode="numeric"
+                onBlur={endTyping}
                 onChange={(event) => updateActivity('duration', event.target.value)}
                 placeholder="Ex.: 54:40 ou 1:00:00"
                 value={activity.duration}
@@ -145,6 +297,7 @@ export function Studio() {
                 aria-describedby={!heartRateValid ? 'heart-rate-error' : undefined}
                 aria-invalid={!heartRateValid}
                 inputMode="numeric"
+                onBlur={endTyping}
                 onChange={(event) => updateActivity('heartRate', event.target.value)}
                 placeholder="Ex.: 158"
                 value={activity.heartRate}
@@ -157,6 +310,7 @@ export function Studio() {
                 aria-describedby={!elevationValid ? 'elevation-error' : undefined}
                 aria-invalid={!elevationValid}
                 inputMode="decimal"
+                onBlur={endTyping}
                 onChange={(event) => updateActivity('elevation', event.target.value)}
                 placeholder="Ex.: 84"
                 value={activity.elevation}
@@ -165,13 +319,14 @@ export function Studio() {
             </label>
             <label className="field">
               Data opcional
-              <input onChange={(event) => updateActivity('date', event.target.value)} type="date" value={activity.date} />
+              <input onBlur={endTyping} onChange={(event) => updateActivity('date', event.target.value)} type="date" value={activity.date} />
             </label>
             <label className="field field-wide">
               Título da atividade
               <input
                 aria-describedby="title-help"
                 maxLength={48}
+                onBlur={endTyping}
                 onChange={(event) => updateActivity('title', event.target.value)}
                 placeholder="Ex.: Corrida de domingo"
                 value={activity.title}
@@ -188,7 +343,7 @@ export function Studio() {
               aria-pressed={appearance.template === template}
               className={appearance.template === template ? 'current-template' : ''}
               key={template}
-              onClick={() => setAppearance((current) => selectTemplate(current, template))}
+              onClick={() => updateAppearance(selectTemplate(appearance, template))}
               type="button"
             >
               <span className={`sample sample-${template.toLowerCase()}`} aria-hidden="true"><span>10,00</span></span>{template}
@@ -202,28 +357,28 @@ export function Studio() {
                 ['transparent', 'Figurinha transparente'],
                 ['full', 'Arte completa'],
               ] as [PreviewMode, string][]).map(([mode, label]) => <label key={mode}>
-                <input checked={appearance.mode === mode} name="preview-mode" onChange={() => setAppearance((current) => ({ ...current, mode }))} type="radio" /> {label}
+                <input checked={appearance.mode === mode} name="preview-mode" onChange={() => updateAppearance({ ...appearance, mode })} type="radio" /> {label}
               </label>)}</div>
               <p className="field-help">A transparência é apenas simulada na prévia; nenhum arquivo é gerado nesta etapa.</p>
             </fieldset>
 
             <div className="field-grid">
               <label className="field">Cor de destaque
-                <select onChange={(event) => setAppearance((current) => ({ ...current, accentColor: event.target.value as keyof typeof accentColors }))} value={appearance.accentColor}>
+                <select onChange={(event) => updateAppearance({ ...appearance, accentColor: event.target.value as keyof typeof accentColors })} value={appearance.accentColor}>
                   {Object.entries(accentColors).map(([key, color]) => <option key={key} value={key}>{color.label}</option>)}
                 </select>
               </label>
               <label className="field">Cor do texto
-                <select onChange={(event) => setAppearance((current) => ({ ...current, textColor: event.target.value as TextColor }))} value={appearance.textColor}>
+                <select onChange={(event) => updateAppearance({ ...appearance, textColor: event.target.value as TextColor })} value={appearance.textColor}>
                   {compatibleTextColors[appearance.template].map((key) => <option key={key} value={key}>{textColors[key].label}</option>)}
                 </select>
               </label>
-              <button className="button reset-colors" onClick={() => setAppearance(resetTemplateColors)} type="button"><RotateCcw size={16} aria-hidden="true" />Restaurar cores</button>
+              <button className="button reset-colors" onClick={() => updateAppearance(resetTemplateColors(appearance))} type="button"><RotateCcw size={16} aria-hidden="true" />Restaurar cores</button>
             </div>
 
             <fieldset><legend>Organização visual</legend>
               <div className="layout-grid">{layoutOptions.map((option) => <label className={appearance.layout === option.value ? 'selected-option' : ''} key={option.value}>
-                <input checked={appearance.layout === option.value} name="layout" onChange={() => setAppearance((current) => ({ ...current, layout: option.value }))} type="radio" value={option.value} />
+                <input checked={appearance.layout === option.value} name="layout" onChange={() => updateAppearance({ ...appearance, layout: option.value })} type="radio" value={option.value} />
                 <strong>{option.label}</strong><span>{option.description}</span>
               </label>)}</div>
             </fieldset>

@@ -28,6 +28,12 @@ npm run dev
 
 No Estúdio, os mesmos dados alimentam Minimal, Performance e Clean. É possível ajustar título, data, métricas opcionais, cores compatíveis, visibilidade e organização, além de simular uma figurinha transparente ou uma arte completa. A troca de aparência não altera distância, tempo nem o pace calculado. Exportação e upload de fotografia ainda não estão disponíveis.
 
+### Histórico, rascunho e restauração
+
+Os botões **Desfazer** e **Refazer** cobrem dados e aparência. Fora dos campos, use `Ctrl + Z`/`Cmd + Z` e `Ctrl + Shift + Z`/`Cmd + Shift + Z`; dentro dos inputs, o comportamento nativo de edição é preservado.
+
+O salvamento de rascunho é opcional e começa desativado. Quando ativado, guarda apenas o estado necessário no `localStorage` daquele navegador, sem conta, servidor ou sincronização. Ao voltar, o usuário escolhe recuperar ou começar novamente; o pace é sempre recalculado. **Restaurar padrão** preserva os dados da corrida, enquanto **Nova figurinha** pede confirmação e reinicia dados e aparência. Rascunhos são excluídos somente por uma ação separada e confirmada.
+
 ## Configuração inicial pelo usuário
 
 - [ ] Criar ou escolher um repositório GitHub para o RUNLAB e importar os arquivos da raiz do ZIP. Preservar `.github/workflows/ci.yml` e `.gitignore`, que são arquivos ocultos em alguns gerenciadores.

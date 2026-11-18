@@ -26,6 +26,32 @@ export type Appearance = {
   visibility: MetricVisibility
 }
 
+export type EditorState = {
+  activity: ActivityData
+  appearance: Appearance
+}
+
+export type EditorHistory = {
+  past: EditorState[]
+  present: EditorState
+  future: EditorState[]
+  activeGroup: string | null
+}
+
+export type HistoryAction =
+  | { type: 'update'; next: EditorState; group?: string }
+  | { type: 'end-group' }
+  | { type: 'undo' }
+  | { type: 'redo' }
+
+export type DraftParseResult =
+  | { ok: true; state: EditorState }
+  | { ok: false; reason: string }
+
+export const DRAFT_STORAGE_KEY = 'runlab-studio:draft'
+export const DRAFT_VERSION = 1
+export const HISTORY_LIMIT = 50
+
 export const accentColors: Record<AccentColor, { label: string; value: string }> = {
   orange: { label: 'Laranja RUNLAB', value: '#F97316' },
   sky: { label: 'Azul céu', value: '#38BDF8' },
@@ -65,6 +91,140 @@ export const defaultAppearance: Appearance = {
   ...templateDefaults.Performance,
   mode: 'full',
   visibility: defaultVisibility,
+}
+
+export const defaultActivity: ActivityData = {
+  distance: '10,00',
+  duration: '54:40',
+  title: 'Corrida de domingo',
+  date: '2026-11-15',
+  heartRate: '158',
+  elevation: '84',
+}
+
+export function createDefaultEditorState(): EditorState {
+  return {
+    activity: { ...defaultActivity },
+    appearance: {
+      ...defaultAppearance,
+      visibility: { ...defaultVisibility },
+    },
+  }
+}
+
+export function createEditorHistory(initial = createDefaultEditorState()): EditorHistory {
+  return { past: [], present: initial, future: [], activeGroup: null }
+}
+
+function editorStatesEqual(first: EditorState, second: EditorState): boolean {
+  return JSON.stringify(first) === JSON.stringify(second)
+}
+
+export function editorHistoryReducer(history: EditorHistory, action: HistoryAction): EditorHistory {
+  if (action.type === 'end-group') {
+    return history.activeGroup === null ? history : { ...history, activeGroup: null }
+  }
+
+  if (action.type === 'undo') {
+    const previous = history.past.at(-1)
+    if (!previous) return { ...history, activeGroup: null }
+
+    return {
+      past: history.past.slice(0, -1),
+      present: previous,
+      future: [history.present, ...history.future].slice(0, HISTORY_LIMIT),
+      activeGroup: null,
+    }
+  }
+
+  if (action.type === 'redo') {
+    const [next, ...remaining] = history.future
+    if (!next) return { ...history, activeGroup: null }
+
+    return {
+      past: [...history.past, history.present].slice(-HISTORY_LIMIT),
+      present: next,
+      future: remaining,
+      activeGroup: null,
+    }
+  }
+
+  if (editorStatesEqual(history.present, action.next)) return history
+
+  const continuesGroup = Boolean(action.group && action.group === history.activeGroup)
+  return {
+    past: continuesGroup ? history.past : [...history.past, history.present].slice(-HISTORY_LIMIT),
+    present: action.next,
+    future: [],
+    activeGroup: action.group ?? null,
+  }
+}
+
+export function restoreDefaultAppearance(state: EditorState): EditorState {
+  return { ...state, appearance: createDefaultEditorState().appearance }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isShortString(value: unknown, maximum: number): value is string {
+  return typeof value === 'string' && value.length <= maximum
+}
+
+function isActivityData(value: unknown): value is ActivityData {
+  if (!isRecord(value)) return false
+  return isShortString(value.distance, 32)
+    && isShortString(value.duration, 32)
+    && isShortString(value.title, 48)
+    && isShortString(value.date, 10)
+    && isShortString(value.heartRate, 32)
+    && isShortString(value.elevation, 32)
+}
+
+function isAppearance(value: unknown): value is Appearance {
+  if (!isRecord(value) || !isRecord(value.visibility)) return false
+
+  const visibility = value.visibility
+  const metricKeys: MetricKey[] = ['distance', 'duration', 'pace', 'heartRate', 'elevation']
+  return templates.includes(value.template as Template)
+    && Object.hasOwn(accentColors, value.accentColor as PropertyKey)
+    && Object.hasOwn(textColors, value.textColor as PropertyKey)
+    && ['centered', 'left', 'featured'].includes(value.layout as string)
+    && ['transparent', 'full'].includes(value.mode as string)
+    && metricKeys.every((key) => typeof visibility[key] === 'boolean')
+}
+
+function isEditorState(value: unknown): value is EditorState {
+  if (!isRecord(value) || !isActivityData(value.activity) || !isAppearance(value.appearance)) return false
+
+  const { activity, appearance } = value
+  return appearance.visibility.distance
+    || appearance.visibility.duration
+    || appearance.visibility.pace
+    || (appearance.visibility.heartRate && activity.heartRate.trim() !== '')
+    || (appearance.visibility.elevation && activity.elevation.trim() !== '')
+}
+
+export function serializeDraft(state: EditorState): string {
+  return JSON.stringify({ version: DRAFT_VERSION, editor: state })
+}
+
+export function parseDraft(raw: string): DraftParseResult {
+  if (raw.length > 20_000) return { ok: false, reason: 'O rascunho salvo excede o tamanho permitido.' }
+
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecord(parsed) || parsed.version !== DRAFT_VERSION) {
+      return { ok: false, reason: 'A versão do rascunho salvo não é compatível.' }
+    }
+    if (!isEditorState(parsed.editor)) {
+      return { ok: false, reason: 'O rascunho salvo contém dados inválidos.' }
+    }
+    return { ok: true, state: parsed.editor }
+  } catch {
+    return { ok: false, reason: 'O rascunho salvo não pôde ser lido.' }
+  }
 }
 
 export function selectTemplate(appearance: Appearance, template: Template): Appearance {
