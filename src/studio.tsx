@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState, type ReactNode } from 'react'
-import { Calculator, ChevronDown, Download, Redo2, RotateCcw, ScanLine, Trash2, Undo2 } from 'lucide-react'
+import { Calculator, CheckCircle2, ChevronDown, Download, LoaderCircle, Redo2, RotateCcw, ScanLine, Trash2, Undo2 } from 'lucide-react'
 import { templates } from './demo'
+import { downloadExport, exportFormatDetails, exportFormats, renderExport, type ExportFormat } from './export-engine'
 import { Sticker, type StickerData, type StickerMetric } from './preview'
 import { calculateAveragePace, formatDistance, formatPace, parseDistanceKm, parseDurationSeconds } from './pace'
 import {
@@ -21,7 +22,6 @@ import {
   type ActivityData,
   type EditorState,
   type MetricKey,
-  type PreviewMode,
   type StickerLayout,
   type TextColor,
 } from './studio-config'
@@ -41,6 +41,7 @@ const layoutOptions: { value: StickerLayout; label: string; description: string 
 ]
 
 type DraftStartup = { pending: EditorState | null; hasStored: boolean; message: string }
+type ExportStatus = { state: 'idle' | 'processing' | 'success' | 'error'; message: string }
 
 function loadDraftStartup(): DraftStartup {
   try {
@@ -71,6 +72,8 @@ export function Studio() {
   const [hasStoredDraft, setHasStoredDraft] = useState(draftStartup.hasStored)
   const [statusMessage, setStatusMessage] = useState(draftStartup.message)
   const [visibilityMessage, setVisibilityMessage] = useState('')
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('story')
+  const [exportStatus, setExportStatus] = useState<ExportStatus>({ state: 'idle', message: '' })
   const { activity, appearance } = history.present
 
   useEffect(() => {
@@ -197,19 +200,40 @@ export function Studio() {
     }
   }
 
+  async function exportSticker() {
+    if (exportStatus.state === 'processing') return
+    if (!calculation.ok || !heartRateValid || !elevationValid) {
+      setExportStatus({ state: 'error', message: 'Corrija os dados inválidos antes de exportar.' })
+      return
+    }
+
+    setExportStatus({ state: 'processing', message: 'Gerando PNG em alta qualidade…' })
+    try {
+      const result = await renderExport(stickerData, appearance, exportFormat, activity.distance)
+      downloadExport(result)
+      setExportStatus({
+        state: 'success',
+        message: `${result.filename} pronto (${result.width} × ${result.height} px).`,
+      })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Falha inesperada ao gerar o arquivo.'
+      setExportStatus({ state: 'error', message: `Não foi possível exportar. ${reason}` })
+    }
+  }
+
   return <>
     <div className="page-heading">
       <span className="eyebrow">RUNLAB Studio</span>
       <h1>Estúdio de figurinhas</h1>
-      <p>Edite os dados, escolha um modelo e personalize a composição. A exportação continua em desenvolvimento.</p>
+      <p>Edite os dados, escolha um modelo e baixe a composição pronta em PNG.</p>
     </div>
     <div className="studio-layout">
       <aside className="preview-panel panel" aria-label="Prévia da figurinha">
-        <div className="preview-heading"><h2><ScanLine size={18} aria-hidden="true" /> Prévia</h2><span>Story · 9:16</span></div>
-        <div className={`preview-stage preview-stage-${appearance.mode}`}>
-          <Sticker appearance={appearance} data={stickerData} template={appearance.template} />
+        <div className="preview-heading"><h2><ScanLine size={18} aria-hidden="true" /> Prévia</h2><span>{exportFormatDetails[exportFormat].label}</span></div>
+        <div className={`preview-stage preview-stage-${exportFormat === 'transparent' ? 'transparent' : 'full'} preview-output-${exportFormat}`}>
+          <Sticker appearance={{ ...appearance, mode: exportFormat === 'transparent' ? 'transparent' : 'full' }} data={stickerData} template={appearance.template} />
         </div>
-        <p aria-live="polite">{appearance.template} · {appearance.mode === 'transparent' ? 'Figurinha transparente' : 'Arte completa'}</p>
+        <p aria-live="polite">{appearance.template} · {exportFormatDetails[exportFormat].description}</p>
       </aside>
 
       <div className="controls" aria-label="Controles do estúdio">
@@ -352,16 +376,6 @@ export function Studio() {
 
         <Group title="Personalização" open>
           <div className="customization-stack">
-            <fieldset><legend>Modo de prévia</legend>
-              <div className="option-row">{([
-                ['transparent', 'Figurinha transparente'],
-                ['full', 'Arte completa'],
-              ] as [PreviewMode, string][]).map(([mode, label]) => <label key={mode}>
-                <input checked={appearance.mode === mode} name="preview-mode" onChange={() => updateAppearance({ ...appearance, mode })} type="radio" /> {label}
-              </label>)}</div>
-              <p className="field-help">A transparência é apenas simulada na prévia; nenhum arquivo é gerado nesta etapa.</p>
-            </fieldset>
-
             <div className="field-grid">
               <label className="field">Cor de destaque
                 <select onChange={(event) => updateAppearance({ ...appearance, accentColor: event.target.value as keyof typeof accentColors })} value={appearance.accentColor}>
@@ -402,9 +416,34 @@ export function Studio() {
         </Group>
 
         <Group title="Exportação" open>
-          <p className="muted">Em desenvolvimento</p>
-          <div className="export-list">{['PNG transparente', 'Story · 1080 × 1920', 'Feed · 1080 × 1350'].map((format) =>
-            <button className="button" key={format} type="button" disabled><Download size={16} aria-hidden="true" />{format}</button>)}</div>
+          <fieldset disabled={exportStatus.state === 'processing'}>
+            <legend className="export-legend">Escolha o formato</legend>
+            <div className="export-list">{exportFormats.map((format) => {
+              const details = exportFormatDetails[format]
+              return <label className={`export-option${exportFormat === format ? ' selected-option' : ''}`} key={format}>
+                <input checked={exportFormat === format} name="export-format" onChange={() => {
+                  setExportFormat(format)
+                  setExportStatus({ state: 'idle', message: '' })
+                }} type="radio" />
+                <span><strong>{details.label}</strong><small>{details.description}</small></span>
+              </label>
+            })}</div>
+          </fieldset>
+          <button
+            className="button primary export-button"
+            disabled={exportStatus.state === 'processing' || !calculation.ok || !heartRateValid || !elevationValid}
+            onClick={exportSticker}
+            type="button"
+          >
+            {exportStatus.state === 'processing'
+              ? <><LoaderCircle className="spin" size={18} aria-hidden="true" />Gerando PNG…</>
+              : <><Download size={18} aria-hidden="true" />Baixar {exportFormatDetails[exportFormat].label}</>}
+          </button>
+          {exportFormat === 'transparent' && <p className="transparent-guidance">A legibilidade depende da foto ou do fundo onde a figurinha será aplicada. Se necessário, escolha uma cor de texto com mais contraste antes de baixar.</p>}
+          <p className={`export-feedback export-feedback-${exportStatus.state}`} role="status" aria-live="polite">
+            {exportStatus.state === 'success' && <CheckCircle2 size={16} aria-hidden="true" />}
+            {exportStatus.message || 'A imagem é criada localmente no navegador; nenhum dado é enviado.'}
+          </p>
         </Group>
       </div>
     </div>
