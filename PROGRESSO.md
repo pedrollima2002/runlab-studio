@@ -22,7 +22,7 @@
 | T10 · Celular real via URL online | não executado | Requer conectar GitHub à hospedagem, publicar uma prévia e abrir Início e Estúdio no telefone. |
 | T11 · Segredos | aprovado | Conferidos os arquivos candidatos à importação. Nenhum `.env`, chave privada ou token conhecido encontrado. |
 
-**Etapa 2 — Editor de figurinhas funcional. Status: em desenvolvimento (2.1 a 2.4 implementadas).**
+**Etapa 2 — Editor de figurinhas funcional. Status: em validação (2.1 a 2.5 implementadas).**
 
 - [x] Formulário manual para distância e tempo.
 - [x] Cálculo automático do ritmo médio e atualização imediata da prévia.
@@ -32,18 +32,23 @@
 - [x] Templates Minimal, Performance e Clean com composições próprias.
 - [x] Cores, título, data, métricas opcionais, visibilidade e organizações predefinidas.
 - [x] Modos de prévia transparente e arte completa, sem geração de arquivo.
-- [ ] Desfazer/refazer e requisitos restantes da subetapa 2.5.
+- [x] Desfazer/refazer por botões e atalhos, com agrupamento previsível da digitação.
+- [x] Rascunho local opcional, versionado, validado e recuperável sem persistir o pace derivado.
+- [x] Restauração da aparência e nova figurinha com confirmação, sem excluir rascunho implicitamente.
+- [ ] Aceite da experiência completa em celular real pela prévia da Vercel.
 
 | Verificação da Etapa 2 | Resultado |
 | --- | --- |
-| Testes automatizados | 16 testes aprovados: os quatro casos de pace, entradas inválidas, padrões dos templates, compatibilidade e restauração de cores, visibilidade e proteção contra figurinha vazia. |
-| Interface funcional | Chromium trocou os três templates sem perder dados, alterou/restaurou cores, título, métricas, organizações e modos de prévia; opcionais vazios não exibiram números fictícios. |
+| Testes automatizados | 25 testes aprovados: regressão de pace/personalização e novos casos de undo/redo, histórico divergente, agrupamento, limite de 50 estados, rascunhos, corrupção e restauração. |
+| Interface funcional | Chromium executou T1–T16: botões e atalhos, pace após undo, autosave opt-in, recuperação após recarga, corrupção, confirmações, templates, personalização e regressões. |
 | Responsividade | Chromium em 360, 390, 768 e 1280 px, sem rolagem horizontal, cortes ou sobreposições; prévia acima dos controles no celular e ao lado no desktop. |
 | Navegação | Sete rotas responderam HTTP 200 e exibiram o título esperado; `/estudio` foi aberta diretamente após recarga. |
-| Qualidade | `npm test`, `npm run lint` e `npm run build` concluídos com sucesso em 18/11/2026. Teste funcional real cobriu T1–T9 e T12–T15; T10–T11 permaneceram cobertos pela suíte unitária. |
+| Qualidade | Linha de base e resultado final: `npm test`, `npm run lint` e `npm run build` concluídos com sucesso em 18/11/2026. |
 
-**Última entrega** — subetapas 2.3 e 2.4: templates e personalização reativos sobre a mesma fonte de dados da atividade. Exportação e fotografia permanecem desabilitadas; não foram adicionados PNG, download, Strava, autenticação, banco de dados ou IA.
+**Última entrega** — subetapa 2.5: histórico tipado, persistência local opcional, recuperação segura, restauração e feedback acessível. Alterações contínuas no mesmo campo formam uma entrada de histórico até a saída do foco; novas edições invalidam o refazer; atalhos globais não interceptam inputs.
 
-**Pendências** — executar o GitHub Actions remoto, obter a prévia da Vercel e conferir Início, Estúdio e recarga de `/estudio` em celular real. Nenhum bug funcional foi encontrado na cobertura local descrita. npm emitiu aviso de depreciação do ESLint 9 e Vite informou duas diretivas `use client` ignoradas no bundle do React Router; os comandos terminaram com sucesso.
+**Limitações do rascunho local** — usa `localStorage`, formato versão 1, debounce de 300 ms e não envia dados ao servidor. Vale somente para o navegador/dispositivo atual, pode ser removido por limpeza dos dados do navegador e não sincroniza entre dispositivos ou modo anônimo. Um rascunho inválido é ignorado com mensagem clara. Desativar o autosave não exclui um rascunho existente; a exclusão exige ação e confirmação próprias.
 
-**Próxima ação** — revisar o PR e a prévia da Vercel no celular, alternando templates, cores, métricas, organizações e modos sem perder os dados. Depois do aceite de 2.3/2.4, planejar a subetapa 2.5 sem antecipar exportação.
+**Pendências** — executar o GitHub Actions remoto, obter a prévia da Vercel e conferir o fluxo completo e a recarga de `/estudio` em celular real. Nenhum bug funcional foi encontrado na cobertura local descrita. npm emitiu aviso de depreciação do ESLint 9 e Vite informou duas diretivas `use client` ignoradas no bundle do React Router; os comandos terminaram com sucesso.
+
+**Próxima ação** — revisar o PR e a prévia da Vercel no celular: editar, desfazer/refazer, salvar, recarregar, recuperar, restaurar e navegar. Após o aceite, encerrar a Etapa 2 e planejar a Etapa 3 sem antecipar funcionalidades neste PR.
