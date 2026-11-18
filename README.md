@@ -1,6 +1,6 @@
 # RUNLAB Studio
 
-Interface demonstrativa para um estúdio de figurinhas e um painel de análise de corrida. O acesso de visitante é livre. As métricas exibidas são exemplos fictícios.
+Estúdio de figurinhas para corrida e painel demonstrativo de análise. O acesso de visitante é livre e o Estúdio exporta imagens localmente, sem conta ou envio dos dados a servidores.
 
 React, TypeScript, Vite, Tailwind CSS, React Router e Lucide. A ilustração do percurso é um SVG local. O projeto roda sem backend, credenciais ou serviços de imagem e fontes.
 
@@ -26,7 +26,21 @@ npm run dev
 | `/entrar` | Tela demonstrativa de conta |
 | Outras | Página 404 com volta ao Início |
 
-No Estúdio, os mesmos dados alimentam Minimal, Performance e Clean. É possível ajustar título, data, métricas opcionais, cores compatíveis, visibilidade e organização, além de simular uma figurinha transparente ou uma arte completa. A troca de aparência não altera distância, tempo nem o pace calculado. Exportação e upload de fotografia ainda não estão disponíveis.
+No Estúdio, os mesmos dados alimentam Minimal, Performance e Clean. É possível ajustar título, data, métricas opcionais, cores compatíveis, visibilidade e organização. A troca de aparência ou formato não altera distância, tempo nem o pace calculado.
+
+### Exportação de imagens
+
+O Estúdio gera três modalidades reais de PNG:
+
+| Formato | Saída |
+| --- | --- |
+| PNG transparente | Canal alfa real e área recortada aos elementos visíveis, com margem |
+| Story | 1080 × 1920 px, proporção 9:16 e fundo do template |
+| Feed | 1080 × 1350 px, proporção 4:5 e composição reorganizada |
+
+A composição é criada no próprio navegador: o RUNLAB monta um SVG vetorial com os dados e parâmetros visuais compartilhados pela prévia, aguarda as fontes disponíveis, rasteriza em Canvas na resolução final e codifica o PNG. Não há serviço externo de imagem, upload ou armazenamento do arquivo. URLs temporárias são revogadas após o uso.
+
+Chrome/Chromium desktop foi exercitado com download e decodificação dos arquivos. As larguras de 360, 390, 768 e 1280 px foram verificadas no Chromium, mas isso não equivale a um teste em aparelho real. Safari/iOS, outros navegadores móveis e o download a partir da prévia da Vercel ainda precisam de validação manual. Em PNG transparente, o contraste final depende do fundo onde a figurinha será aplicada.
 
 ### Histórico, rascunho e restauração
 

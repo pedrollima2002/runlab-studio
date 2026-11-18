@@ -32,8 +32,12 @@
 ## 3. Exportação e Stories
 
 - [ ] Adicionar foto, composição e guia de área segura.
-- [ ] Exportar PNG transparente, Story 1080 × 1920 e feed 1080 × 1350.
+- [x] Exportar PNG transparente, Story 1080 × 1920 e feed 1080 × 1350 na subetapa 3A.
 - [ ] Verificar nitidez e habilitar compartilhamento quando compatível, com download como alternativa.
+
+**Entregue em 3A** — geração local por SVG e Canvas, PNG transparente com alfa real e recorte ao conteúdo, Story 9:16 e Feed 4:5 com composição adaptada, seletor de formato, prévia coerente, download, estados de processamento/sucesso/erro e bloqueio de exportações simultâneas. Os três templates usam os mesmos dados e parâmetros visuais do editor. A cobertura automatizada e no Chromium validou dimensões, decodificação, alfa, templates, textos, personalização, rotas e regressões.
+
+**Pendente para 3B** — fotografia, composição e área segura para foto, compartilhamento compatível e alternativa de download em aparelhos reais. Safari/iOS e navegadores móveis reais ainda não foram validados.
 
 **Testes** — canal alfa, dimensões, camadas, acentos, fontes, margens, cortes e alternativa de download em Android e desktop.  
 **Aceite** — arquivos utilizáveis fora do RUNLAB.  
