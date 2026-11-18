@@ -14,10 +14,13 @@
 
 - [x] Definir o modelo de dados das métricas e implementar entrada manual de distância e tempo com validação.
 - [x] Calcular ritmo médio como tempo em segundos dividido pela distância em km, sem exigir preenchimento manual do ritmo.
-- [ ] Implementar Minimal, Performance e Clean, cores, textos e seleção de métricas visíveis.
-- [ ] Sincronizar a prévia e implementar desfazer/refazer para as mudanças essenciais.
+- [x] Implementar Minimal, Performance e Clean, cores, textos e seleção de métricas visíveis.
+- [x] Sincronizar imediatamente dados, template, cores, organização, métricas e modo de prévia.
+- [ ] Implementar desfazer/refazer para as mudanças essenciais e concluir a experiência de edição da subetapa 2.5.
 
 **Entregue em 2.1 e 2.2** — atualização imediata da prévia para distância, tempo e ritmo; suporte a `MM:SS`, `H:MM:SS`, vírgula e ponto decimal; mensagens de erro acessíveis; layout responsivo; e ressalva sobre pausas no cálculo manual. A sincronização completa de modelos, personalização e histórico de desfazer/refazer permanece para as próximas subetapas.
+
+**Entregue em 2.3 e 2.4** — três composições funcionais, cores predefinidas e restauráveis, título/data/métricas opcionais, controle de visibilidade, organizações centralizada, à esquerda e com métrica principal em destaque, além de simulação de figurinha transparente e arte completa. Exportação, fotografia, posicionamento livre e desfazer/refazer permanecem fora desta entrega.
 
 **Testes** — 10 km / 54:40 = 5:28/km, 5 km / 25:00 = 5:00/km, 2,5 km / 12:30 = 5:00/km e 10 km / 1:00:00 = 6:00/km. Cobrir distância zero ou negativa, texto e tempo inválidos, troca de modelo e uso em celular.  
 **Aceite** — visitante monta a figurinha manualmente. Exibir “O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.”  
