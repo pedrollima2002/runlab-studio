@@ -13,4 +13,4 @@ export const metrics = [
   { label: 'Ritmo médio', value: demo.pace, unit: 'min/km' },
 ]
 
-export const templates = ['Minimal', 'Performance', 'Clean'] as const
+export { templates } from './studio-config'

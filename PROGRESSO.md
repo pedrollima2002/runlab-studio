@@ -22,24 +22,28 @@
 | T10 · Celular real via URL online | não executado | Requer conectar GitHub à hospedagem, publicar uma prévia e abrir Início e Estúdio no telefone. |
 | T11 · Segredos | aprovado | Conferidos os arquivos candidatos à importação. Nenhum `.env`, chave privada ou token conhecido encontrado. |
 
-**Etapa 2 — Editor de figurinhas funcional. Status: em desenvolvimento (2.1 e 2.2 implementadas).**
+**Etapa 2 — Editor de figurinhas funcional. Status: em desenvolvimento (2.1 a 2.4 implementadas).**
 
 - [x] Formulário manual para distância e tempo.
 - [x] Cálculo automático do ritmo médio e atualização imediata da prévia.
 - [x] Validação de distância e tempo, com suporte a `MM:SS`, `H:MM:SS`, vírgula e ponto decimal.
 - [x] Ressalva explícita sobre pausas no cálculo manual.
 - [x] Teste funcional responsivo em Chromium a 390 e 1280 px.
-- [ ] Modelos, personalização, seleção de métricas e desfazer/refazer.
+- [x] Templates Minimal, Performance e Clean com composições próprias.
+- [x] Cores, título, data, métricas opcionais, visibilidade e organizações predefinidas.
+- [x] Modos de prévia transparente e arte completa, sem geração de arquivo.
+- [ ] Desfazer/refazer e requisitos restantes da subetapa 2.5.
 
 | Verificação da Etapa 2 | Resultado |
 | --- | --- |
-| Testes dos cálculos | 9 testes aprovados: os quatro casos do roteiro, formatos aceitos, distância zero/negativa/textual e tempos inválidos. |
-| Interface funcional | Chromium preencheu os campos, confirmou o pace e a prévia, exibiu dois erros em entradas inválidas e recalculou após a correção. |
-| Celular | Em viewport de 390 × 844, sem rolagem horizontal e com prévia antes dos controles. A revisão em aparelho real depende da URL da Vercel. |
-| Qualidade | `npm test`, `npm run lint` e `npm run build` concluídos com sucesso em 18/11/2026. |
+| Testes automatizados | 16 testes aprovados: os quatro casos de pace, entradas inválidas, padrões dos templates, compatibilidade e restauração de cores, visibilidade e proteção contra figurinha vazia. |
+| Interface funcional | Chromium trocou os três templates sem perder dados, alterou/restaurou cores, título, métricas, organizações e modos de prévia; opcionais vazios não exibiram números fictícios. |
+| Responsividade | Chromium em 360, 390, 768 e 1280 px, sem rolagem horizontal, cortes ou sobreposições; prévia acima dos controles no celular e ao lado no desktop. |
+| Navegação | Sete rotas responderam HTTP 200 e exibiram o título esperado; `/estudio` foi aberta diretamente após recarga. |
+| Qualidade | `npm test`, `npm run lint` e `npm run build` concluídos com sucesso em 18/11/2026. Teste funcional real cobriu T1–T9 e T12–T15; T10–T11 permaneceram cobertos pela suíte unitária. |
 
-**Última entrega** — subetapas 2.1 e 2.2: entrada manual, cálculo e prévia ao vivo. Modelos, personalização e exportação permanecem indisponíveis; não foram adicionados PNG, Strava, autenticação ou IA.
+**Última entrega** — subetapas 2.3 e 2.4: templates e personalização reativos sobre a mesma fonte de dados da atividade. Exportação e fotografia permanecem desabilitadas; não foram adicionados PNG, download, Strava, autenticação, banco de dados ou IA.
 
 **Pendências** — executar o GitHub Actions remoto, obter a prévia da Vercel e conferir Início, Estúdio e recarga de `/estudio` em celular real. Nenhum bug funcional foi encontrado na cobertura local descrita. npm emitiu aviso de depreciação do ESLint 9 e Vite informou duas diretivas `use client` ignoradas no bundle do React Router; os comandos terminaram com sucesso.
 
-**Próxima ação** — revisar o PR e a prévia da Vercel no celular. Depois do aceite de 2.1/2.2, avançar para modelos, personalização e seleção de métricas, sem antecipar exportação.
+**Próxima ação** — revisar o PR e a prévia da Vercel no celular, alternando templates, cores, métricas, organizações e modos sem perder os dados. Depois do aceite de 2.3/2.4, planejar a subetapa 2.5 sem antecipar exportação.

@@ -19,12 +19,14 @@ npm run dev
 | Rota | Tela |
 | --- | --- |
 | `/` | Início com amostras e links para os dois módulos |
-| `/estudio` | Editor manual de distância e tempo, cálculo de ritmo e prévia 9:16 |
+| `/estudio` | Editor manual, cálculo de ritmo, três templates e personalização da prévia 9:16 |
 | `/analises` | Métricas e gráfico ilustrativos |
 | `/historico` | Estado vazio |
 | `/perfil` | Preferências e zonas cardíacas |
 | `/entrar` | Tela demonstrativa de conta |
 | Outras | Página 404 com volta ao Início |
+
+No Estúdio, os mesmos dados alimentam Minimal, Performance e Clean. É possível ajustar título, data, métricas opcionais, cores compatíveis, visibilidade e organização, além de simular uma figurinha transparente ou uma arte completa. A troca de aparência não altera distância, tempo nem o pace calculado. Exportação e upload de fotografia ainda não estão disponíveis.
 
 ## Configuração inicial pelo usuário
 
