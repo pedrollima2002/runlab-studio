@@ -1,8 +1,18 @@
-import { useEffect, useReducer, useState, type ReactNode } from 'react'
-import { Calculator, CheckCircle2, ChevronDown, Download, LoaderCircle, Redo2, RotateCcw, ScanLine, Trash2, Undo2 } from 'lucide-react'
+import { useEffect, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { Calculator, CheckCircle2, ChevronDown, Crosshair, Download, ImageOff, ImagePlus, LoaderCircle, Redo2, RotateCcw, ScanLine, Share2, Trash2, Undo2 } from 'lucide-react'
 import { templates } from './demo'
 import { downloadExport, exportFormatDetails, exportFormats, renderExport, type ExportFormat } from './export-engine'
-import { Sticker, type StickerData, type StickerMetric } from './preview'
+import { Sticker, type StickerData, type StickerMetric, type StickerPhoto } from './preview'
+import {
+  calculatePhotoPlacement,
+  defaultPhotoAdjustments,
+  loadPhotoAsset,
+  normalizePhotoAdjustments,
+  photoPlacementStyle,
+  releasePhotoAsset,
+  type PhotoAdjustments,
+  type PhotoAsset,
+} from './photo'
 import { calculateAveragePace, formatDistance, formatPace, parseDistanceKm, parseDurationSeconds } from './pace'
 import {
   accentColors,
@@ -42,6 +52,7 @@ const layoutOptions: { value: StickerLayout; label: string; description: string 
 
 type DraftStartup = { pending: EditorState | null; hasStored: boolean; message: string }
 type ExportStatus = { state: 'idle' | 'processing' | 'success' | 'error'; message: string }
+type PhotoStatus = { state: 'idle' | 'processing' | 'success' | 'error'; message: string }
 
 function loadDraftStartup(): DraftStartup {
   try {
@@ -74,6 +85,13 @@ export function Studio() {
   const [visibilityMessage, setVisibilityMessage] = useState('')
   const [exportFormat, setExportFormat] = useState<ExportFormat>('story')
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ state: 'idle', message: '' })
+  const [photoAsset, setPhotoAsset] = useState<PhotoAsset | null>(null)
+  const [photoAdjustments, setPhotoAdjustments] = useState<PhotoAdjustments>(defaultPhotoAdjustments)
+  const [photoStatus, setPhotoStatus] = useState<PhotoStatus>({ state: 'idle', message: '' })
+  const [photoDragging, setPhotoDragging] = useState(false)
+  const dragState = useRef<{ pointerId: number; x: number; y: number; focalX: number; focalY: number } | null>(null)
+  const dragFrame = useRef<number | null>(null)
+  const pendingFocus = useRef<{ focalX: number; focalY: number } | null>(null)
   const { activity, appearance } = history.present
 
   useEffect(() => {
@@ -108,6 +126,12 @@ export function Studio() {
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
 
+  useEffect(() => () => releasePhotoAsset(photoAsset), [photoAsset])
+
+  useEffect(() => () => {
+    if (dragFrame.current !== null) window.cancelAnimationFrame(dragFrame.current)
+  }, [])
+
   const parsedDistance = parseDistanceKm(activity.distance)
   const parsedDuration = parseDurationSeconds(activity.duration)
   const calculation = calculateAveragePace(activity.distance, activity.duration)
@@ -134,6 +158,26 @@ export function Studio() {
     date: formatActivityDate(activity.date),
     metrics: allMetrics.filter((metric) => appearance.visibility[metric.key]),
   }
+
+  const exportDimensions = exportFormatDetails[exportFormat]
+  const previewPhoto: StickerPhoto | undefined = photoAsset && exportFormat !== 'transparent'
+    ? {
+        url: photoAsset.url,
+        placement: photoPlacementStyle(
+          calculatePhotoPlacement(
+            photoAsset.width,
+            photoAsset.height,
+            exportDimensions.width,
+            exportDimensions.height,
+            photoAdjustments,
+          ),
+          exportDimensions.width,
+          exportDimensions.height,
+        ),
+        darkness: photoAdjustments.darkness,
+        gradient: photoAdjustments.gradient,
+      }
+    : undefined
 
   function updateActivity(field: keyof ActivityData, value: string) {
     dispatchHistory({
@@ -179,8 +223,80 @@ export function Studio() {
   function startNewEdition() {
     if (!window.confirm('Iniciar uma nova figurinha e descartar os dados atuais do editor?')) return
     dispatchHistory({ type: 'update', next: createDefaultEditorState() })
+    setPhotoAsset(null)
+    setPhotoAdjustments(defaultPhotoAdjustments)
+    setPhotoStatus({ state: 'idle', message: '' })
     setPendingDraft(null)
     setStatusMessage('Nova figurinha iniciada. O rascunho salvo não foi excluído.')
+  }
+
+  async function selectPhoto(file: File | undefined) {
+    if (!file || photoStatus.state === 'processing') return
+    setPhotoStatus({ state: 'processing', message: 'Processando fotografia no seu dispositivo…' })
+    try {
+      const asset = await loadPhotoAsset(file)
+      setPhotoAsset(asset)
+      setPhotoAdjustments(defaultPhotoAdjustments)
+      setPhotoStatus({
+        state: 'success',
+        message: `${asset.name} pronta (${asset.originalWidth} × ${asset.originalHeight} px).`,
+      })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Não foi possível processar esta fotografia.'
+      setPhotoStatus({ state: 'error', message: reason })
+    }
+  }
+
+  function removePhoto() {
+    setPhotoAsset(null)
+    setPhotoAdjustments(defaultPhotoAdjustments)
+    setPhotoStatus({ state: 'idle', message: 'Fotografia removida. Os dados da corrida foram preservados.' })
+  }
+
+  function updatePhotoAdjustments(next: PhotoAdjustments) {
+    setPhotoAdjustments(normalizePhotoAdjustments(next))
+  }
+
+  function startPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!previewPhoto || !event.isPrimary) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragState.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      focalX: photoAdjustments.focalX,
+      focalY: photoAdjustments.focalY,
+    }
+    setPhotoDragging(true)
+  }
+
+  function movePhoto(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragState.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    pendingFocus.current = {
+      focalX: drag.focalX - (event.clientX - drag.x) / (bounds.width * photoAdjustments.zoom),
+      focalY: drag.focalY - (event.clientY - drag.y) / (bounds.height * photoAdjustments.zoom),
+    }
+    if (dragFrame.current !== null) return
+    dragFrame.current = window.requestAnimationFrame(() => {
+      const focus = pendingFocus.current
+      if (focus) setPhotoAdjustments((current) => normalizePhotoAdjustments({ ...current, ...focus }))
+      pendingFocus.current = null
+      dragFrame.current = null
+    })
+  }
+
+  function endPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragState.current?.pointerId !== event.pointerId) return
+    dragState.current = null
+    setPhotoDragging(false)
+  }
+
+  function currentPhotoComposition() {
+    return photoAsset
+      ? { source: photoAsset.source, width: photoAsset.width, height: photoAsset.height, adjustments: photoAdjustments }
+      : undefined
   }
 
   function restoreAppearance() {
@@ -209,7 +325,7 @@ export function Studio() {
 
     setExportStatus({ state: 'processing', message: 'Gerando PNG em alta qualidade…' })
     try {
-      const result = await renderExport(stickerData, appearance, exportFormat, activity.distance)
+      const result = await renderExport(stickerData, appearance, exportFormat, activity.distance, currentPhotoComposition())
       downloadExport(result)
       setExportStatus({
         state: 'success',
@@ -218,6 +334,38 @@ export function Studio() {
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Falha inesperada ao gerar o arquivo.'
       setExportStatus({ state: 'error', message: `Não foi possível exportar. ${reason}` })
+    }
+  }
+
+  async function shareSticker() {
+    if (exportStatus.state === 'processing') return
+    if (!calculation.ok || !heartRateValid || !elevationValid) {
+      setExportStatus({ state: 'error', message: 'Corrija os dados inválidos antes de compartilhar.' })
+      return
+    }
+    if (typeof navigator.share !== 'function') {
+      setExportStatus({ state: 'error', message: 'Compartilhamento nativo indisponível neste navegador. Use o botão de download.' })
+      return
+    }
+
+    setExportStatus({ state: 'processing', message: 'Preparando imagem para compartilhar…' })
+    try {
+      const result = await renderExport(stickerData, appearance, exportFormat, activity.distance, currentPhotoComposition())
+      const file = new File([result.blob], result.filename, { type: 'image/png' })
+      const shareData: ShareData = { files: [file], title: 'RUNLAB Studio', text: 'Minha corrida no RUNLAB Studio' }
+      if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
+        setExportStatus({ state: 'error', message: 'Este navegador não compartilha arquivos PNG. Baixe a imagem e adicione-a manualmente.' })
+        return
+      }
+      await navigator.share(shareData)
+      setExportStatus({ state: 'success', message: 'Imagem enviada ao menu de compartilhamento do dispositivo.' })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setExportStatus({ state: 'idle', message: 'Compartilhamento cancelado; nenhuma imagem foi enviada.' })
+        return
+      }
+      const reason = error instanceof Error ? error.message : 'Falha inesperada ao compartilhar.'
+      setExportStatus({ state: 'error', message: `Não foi possível compartilhar. ${reason} Use o download como alternativa.` })
     }
   }
 
@@ -230,10 +378,23 @@ export function Studio() {
     <div className="studio-layout">
       <aside className="preview-panel panel" aria-label="Prévia da figurinha">
         <div className="preview-heading"><h2><ScanLine size={18} aria-hidden="true" /> Prévia</h2><span>{exportFormatDetails[exportFormat].label}</span></div>
-        <div className={`preview-stage preview-stage-${exportFormat === 'transparent' ? 'transparent' : 'full'} preview-output-${exportFormat}`}>
-          <Sticker appearance={{ ...appearance, mode: exportFormat === 'transparent' ? 'transparent' : 'full' }} data={stickerData} template={appearance.template} />
+        <div
+          aria-label={previewPhoto ? 'Área de enquadramento da fotografia. Arraste para reposicionar.' : undefined}
+          className={`preview-stage preview-stage-${exportFormat === 'transparent' ? 'transparent' : 'full'} preview-output-${exportFormat}${previewPhoto ? ' photo-interactive' : ''}${photoDragging ? ' photo-dragging' : ''}`}
+          onPointerCancel={endPhotoDrag}
+          onPointerDown={startPhotoDrag}
+          onPointerMove={movePhoto}
+          onPointerUp={endPhotoDrag}
+        >
+          <Sticker
+            appearance={{ ...appearance, mode: exportFormat === 'transparent' ? 'transparent' : 'full' }}
+            data={stickerData}
+            photo={previewPhoto}
+            showSafeArea={Boolean(previewPhoto)}
+            template={appearance.template}
+          />
         </div>
-        <p aria-live="polite">{appearance.template} · {exportFormatDetails[exportFormat].description}</p>
+        <p aria-live="polite">{appearance.template} · {exportFormatDetails[exportFormat].description}{photoAsset && exportFormat === 'transparent' ? ' · a foto fica preservada, mas não entra neste PNG' : ''}</p>
       </aside>
 
       <div className="controls" aria-label="Controles do estúdio">
@@ -269,7 +430,7 @@ export function Studio() {
                 }}
                 type="checkbox"
               />
-              <span><strong>Salvar rascunho neste dispositivo</strong><small>Os dados ficam somente neste navegador, sem conta ou sincronização.</small></span>
+              <span><strong>Salvar rascunho neste dispositivo</strong><small>Dados e personalização ficam neste navegador. Fotografias não são salvas no rascunho.</small></span>
             </label>
             {pendingDraft && <p className="field-help">Escolha primeiro se deseja recuperar o rascunho encontrado.</p>}
             <div className="draft-actions">
@@ -361,6 +522,84 @@ export function Studio() {
           <p className="calculation-note">O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.</p>
         </Group>
 
+        <Group title="Fotografia" open>
+          <div className="photo-controls">
+            <div className={`photo-upload${photoAsset ? ' photo-upload-selected' : ''}`}>
+              <div>
+                <ImagePlus size={22} aria-hidden="true" />
+                <strong>{photoAsset ? photoAsset.name : 'Adicionar foto'}</strong>
+                <span>{photoAsset ? `${photoAsset.originalWidth} × ${photoAsset.originalHeight} px` : 'JPEG, PNG ou WebP · até 15 MB e 80 MP'}</span>
+              </div>
+              <label className="button photo-file-button">
+                {photoAsset ? 'Substituir foto' : 'Escolher foto'}
+                <input
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  disabled={photoStatus.state === 'processing'}
+                  onChange={(event) => {
+                    void selectPhoto(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                  type="file"
+                />
+              </label>
+            </div>
+
+            {photoAsset && <>
+              <p className="photo-instruction"><Crosshair size={16} aria-hidden="true" /> Arraste a foto na prévia para reposicionar. O slider também funciona por teclado e toque.</p>
+              <div className="photo-slider-grid">
+                <label className="range-field">
+                  <span>Zoom <output>{photoAdjustments.zoom.toFixed(2)}×</output></span>
+                  <input
+                    aria-label="Zoom da fotografia"
+                    max="3"
+                    min="1"
+                    onChange={(event) => updatePhotoAdjustments({ ...photoAdjustments, zoom: Number(event.target.value) })}
+                    step="0.01"
+                    type="range"
+                    value={photoAdjustments.zoom}
+                  />
+                </label>
+                <label className="range-field">
+                  <span>Escurecimento <output>{Math.round(photoAdjustments.darkness * 100)}%</output></span>
+                  <input
+                    aria-label="Escurecimento da fotografia"
+                    max="0.65"
+                    min="0"
+                    onChange={(event) => updatePhotoAdjustments({ ...photoAdjustments, darkness: Number(event.target.value) })}
+                    step="0.01"
+                    type="range"
+                    value={photoAdjustments.darkness}
+                  />
+                </label>
+                <label className="range-field">
+                  <span>Gradiente de contraste <output>{Math.round(photoAdjustments.gradient * 100)}%</output></span>
+                  <input
+                    aria-label="Gradiente de contraste"
+                    max="0.8"
+                    min="0"
+                    onChange={(event) => updatePhotoAdjustments({ ...photoAdjustments, gradient: Number(event.target.value) })}
+                    step="0.01"
+                    type="range"
+                    value={photoAdjustments.gradient}
+                  />
+                </label>
+              </div>
+              <div className="photo-actions">
+                <button className="button" onClick={() => updatePhotoAdjustments({ ...photoAdjustments, focalX: .5, focalY: .5 })} type="button"><Crosshair size={16} aria-hidden="true" />Centralizar</button>
+                <button className="button" onClick={() => updatePhotoAdjustments({ ...photoAdjustments, zoom: 1, focalX: .5, focalY: .5 })} type="button"><RotateCcw size={16} aria-hidden="true" />Restaurar enquadramento</button>
+                <button className="button" onClick={() => updatePhotoAdjustments({ ...photoAdjustments, darkness: defaultPhotoAdjustments.darkness, gradient: defaultPhotoAdjustments.gradient })} type="button">Restaurar contraste</button>
+                <button className="button danger-button" onClick={removePhoto} type="button"><ImageOff size={16} aria-hidden="true" />Remover foto</button>
+              </div>
+            </>}
+
+            <p className={`photo-feedback photo-feedback-${photoStatus.state}`} role="status" aria-live="polite">
+              {photoStatus.state === 'processing' && <LoaderCircle className="spin" size={16} aria-hidden="true" />}
+              {photoStatus.message || 'A foto permanece somente nesta aba e precisa ser selecionada novamente após fechar ou recarregar.'}
+            </p>
+            <p className="field-help">A imagem não é enviada nem gravada no rascunho. HEIC/HEIF e SVG não são aceitos. Para PNG transparente, a foto é mantida no editor, mas fica fora do arquivo.</p>
+          </div>
+        </Group>
+
         <Group title="Modelos" open>
           <div className="template-grid">{templates.map((template) =>
             <button
@@ -439,6 +678,12 @@ export function Studio() {
               ? <><LoaderCircle className="spin" size={18} aria-hidden="true" />Gerando PNG…</>
               : <><Download size={18} aria-hidden="true" />Baixar {exportFormatDetails[exportFormat].label}</>}
           </button>
+          <button
+            className="button share-button"
+            disabled={exportStatus.state === 'processing' || !calculation.ok || !heartRateValid || !elevationValid}
+            onClick={shareSticker}
+            type="button"
+          ><Share2 size={18} aria-hidden="true" />Compartilhar</button>
           {exportFormat === 'transparent' && <p className="transparent-guidance">A legibilidade depende da foto ou do fundo onde a figurinha será aplicada. Se necessário, escolha uma cor de texto com mais contraste antes de baixar.</p>}
           <p className={`export-feedback export-feedback-${exportStatus.state}`} role="status" aria-live="polite">
             {exportStatus.state === 'success' && <CheckCircle2 size={16} aria-hidden="true" />}

@@ -31,13 +31,16 @@
 
 ## 3. Exportação e Stories
 
-- [ ] Adicionar foto, composição e guia de área segura.
+- [x] Adicionar foto local, enquadramento, composição, contraste e guia de área segura na subetapa 3B.
 - [x] Exportar PNG transparente, Story 1080 × 1920 e feed 1080 × 1350 na subetapa 3A.
-- [ ] Verificar nitidez e habilitar compartilhamento quando compatível, com download como alternativa.
+- [x] Verificar nitidez local e habilitar Web Share quando compatível, com download como alternativa, na subetapa 3B.
+- [ ] Validar upload, exportação e compartilhamento em celular real e Safari/iOS pela prévia hospedada.
 
 **Entregue em 3A** — geração local por SVG e Canvas, PNG transparente com alfa real e recorte ao conteúdo, Story 9:16 e Feed 4:5 com composição adaptada, seletor de formato, prévia coerente, download, estados de processamento/sucesso/erro e bloqueio de exportações simultâneas. Os três templates usam os mesmos dados e parâmetros visuais do editor. A cobertura automatizada e no Chromium validou dimensões, decodificação, alfa, templates, textos, personalização, rotas e regressões.
 
-**Pendente para 3B** — fotografia, composição e área segura para foto, compartilhamento compatível e alternativa de download em aparelhos reais. Safari/iOS e navegadores móveis reais ainda não foram validados.
+**Entregue em 3B** — JPEG/PNG/WebP locais com validação e orientação EXIF, redução interna de imagens grandes, enquadramento normalizado compartilhado pela prévia e Canvas, zoom, arraste, centralização, contraste, guia de área segura, Story/Feed com foto, PNG transparente sem foto, Web Share com arquivo e fallback de download. Fotografias e URLs temporárias ficam fora dos rascunhos e são liberadas ao substituir, remover ou sair.
+
+**Validação pendente** — apesar da cobertura automatizada e funcional em Chromium, a Etapa 3 não está encerrada até executar o fluxo em celular real, Safari/iOS e prévia Vercel. Web Share foi exercitado com API simulada; o menu nativo e aplicativos de destino não foram testados. Pinça não foi implementada; zoom permanece disponível pelo slider.
 
 **Testes** — canal alfa, dimensões, camadas, acentos, fontes, margens, cortes e alternativa de download em Android e desktop.  
 **Aceite** — arquivos utilizáveis fora do RUNLAB.  
