@@ -37,6 +37,13 @@ describe('planejamento da exportação', () => {
     assert.doesNotMatch(plan.svg, /<rect width="1080" height="1350"/)
   })
 
+  it('omite o fundo opaco quando uma foto ocupa Story ou Feed', () => {
+    const state = createDefaultEditorState()
+    const plan = createExportSvg(data, state.appearance, 'story', { hasPhoto: true })
+    assert.doesNotMatch(plan.svg, /<rect width="1080" height="1920"/)
+    assert.match(plan.svg, /Corrida de São João/)
+  })
+
   it('mantém os três templates exportáveis', () => {
     for (const template of ['Minimal', 'Performance', 'Clean'] as const) {
       const state = createDefaultEditorState()

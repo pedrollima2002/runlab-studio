@@ -51,14 +51,14 @@
 
 **Pendências** — executar o GitHub Actions remoto, obter a prévia da Vercel e conferir o fluxo completo e a recarga de `/estudio` em celular real. Nenhum bug funcional foi encontrado na cobertura local descrita. npm emitiu aviso de depreciação do ESLint 9 e Vite informou duas diretivas `use client` ignoradas no bundle do React Router; os comandos terminaram com sucesso.
 
-**Etapa 3 — Exportação e Stories. Status: 3A implementada; Etapa 3 permanece em andamento.**
+**Etapa 3 — Exportação, fotografias e compartilhamento. Status: 3A e 3B implementadas; Etapa 3 permanece em validação.**
 
 - [x] PNG transparente real, sem quadriculado ou fundo introduzido e com área ajustada ao conteúdo.
 - [x] Story 1080 × 1920 e Feed 1080 × 1350 com layouts próprios para cada proporção.
 - [x] Seleção de formato, prévia proporcional, download real e estados de processamento, sucesso e falha.
 - [x] Renderização local por SVG vetorial e Canvas, sem dependência nova ou serviço externo.
 - [x] Espera pelas fontes disponíveis, escape de entradas textuais e liberação de URLs temporárias.
-- [ ] Fotografia, composição, guia de área segura e compartilhamento (Etapa 3B).
+- [x] Fotografia, composição, guia de área segura e compartilhamento compatível (Etapa 3B).
 - [ ] Validação de download em celular real e Safari/iOS pela prévia da Vercel.
 
 ### Evidências da Etapa 3A — 18/11/2026
@@ -90,4 +90,42 @@
 
 **Limitações conhecidas** — a fonte efetiva depende das fontes disponíveis no navegador, com fallback para Arial/sans-serif; o PNG transparente pode ter contraste insuficiente sobre determinadas fotos, por isso a interface orienta a escolha de cor; Safari/iOS, Android real, Vercel e consumo de memória em aparelhos de baixa capacidade não foram testados. Não há fotografia, compartilhamento, upload ou persistência das imagens nesta subetapa.
 
-**Próxima ação** — revisar o PR e a prévia da Vercel no celular, baixar os três formatos e comparar os arquivos na galeria. Depois, planejar a Etapa 3B sem marcar a Etapa 3 completa.
+### Evidências da Etapa 3B — 18/11/2026
+
+| Teste | Estado | Evidência |
+| --- | --- | --- |
+| T1 · Upload | aprovado no Chromium | JPEG 1600 × 900, PNG e WebP 900 × 1600 foram decodificados. JPEG 5000 × 1000 teve prévia interna reduzida para 4096 px. |
+| T2 · Arquivos inválidos | aprovado | Testes unitários recusaram SVG, HEIC, arquivo vazio e mais de 15 MB; a interface rejeitou SVG com mensagem explícita. |
+| T3 · Orientação | aprovado no Chromium | JPEG 1200 × 800 com EXIF orientação 6 foi interpretado como 800 × 1200; fotos horizontal e vertical também foram exercitadas. |
+| T4 · Proporção | aprovado | Cálculos unitários e inspeção do CSS comprovaram preservação da razão original durante o preenchimento. |
+| T5 · Zoom | aprovado | Slider ampliou de 1× a 2×; limites unitários normalizam entre 1× e 3× sem área descoberta. |
+| T6 · Arrastar | aprovado em ambiente emulado | Mouse e eventos de toque do Chromium alteraram o foco normalizado; toque real em aparelho segue pendente. |
+| T7 · Restaurar | aprovado | Restauração devolveu zoom 1× e foco central; contraste possui restauração separada. |
+| T8 · Templates | aprovado | Minimal, Performance e Clean foram alternados sem perder foto ou dados. |
+| T9 · Contraste | aprovado | Escurecimento de 40% apareceu na prévia; gradiente de 70% foi aplicado no mesmo estado usado pela exportação. |
+| T10 · Story | aprovado | PNG com foto e métricas decodificado em exatamente 1080 × 1920 px. |
+| T11 · Feed | aprovado | PNG com foto e métricas decodificado em exatamente 1080 × 1350 px. |
+| T12 · Transparência | aprovado | PNG RGBA manteve alfa zero e foi binariamente idêntico com e sem foto selecionada. |
+| T13 · Fidelidade | aprovado por inspeção local | Prévia e montagem dos PNGs mantiveram foco, recorte, contraste, template, textos e métricas; guia segura não apareceu nos arquivos. |
+| T14 · Acentuação | aprovado | “Corrida de São João — ação” foi exportado em PNG com foto. |
+| T15 · Textos longos | aprovado por regressão | Limite de 48 caracteres e quebra em até duas linhas do motor 3A permaneceram ativos, sem corte observado. |
+| T16 · Remover fotografia | aprovado | Remoção voltou ao estado sem imagem e manteve título e dados da corrida. |
+| T17 · Compartilhamento | aprovado com API simulada | Web Share recebeu um `File` PNG válido; cancelamento `AbortError` retornou mensagem neutra. Menu nativo real não foi executado. |
+| T18 · Fallback | aprovado | Ausência simulada de Web Share mostrou orientação para download, que permaneceu habilitado. |
+| T19 · Privacidade | aprovado localmente | Nenhuma requisição HTTP externa; rascunho de 361 bytes sem `blob:`, Base64, nome ou conteúdo da fotografia. |
+| T20 · Rascunhos | aprovado | Recarregar recuperou o fluxo textual sem camada de foto nem URL quebrada; a interface informa a necessidade de reseleção. |
+| T21 · Mobile | aprovado em viewport Chromium | 360 e 390 px sem rolagem horizontal; captura completa em 390 px sem sobreposição. Não equivale a aparelho real. |
+| T22 · Tablet e desktop | aprovado no Chromium | 768 e 1280 px sem rolagem horizontal. |
+| T23 · Rotas | aprovado | Abertura direta e recarga de `/estudio` responderam HTTP 200. |
+| T24 · Regressão | aprovado localmente | 5 km / 25:00 retornou 5:00/km; testes automatizados cobrem templates, cores, histórico, rascunhos e exportação 3A. |
+| T25 · Memória | parcial | Após seis substituições e uma exportação, restou somente a URL da foto atual; URLs anteriores e temporárias foram revogadas. Perfil de heap em celular real não foi executado. |
+
+**Decisões técnicas da 3B** — a fotografia é um `ImageBitmap` orientado pelo navegador e, acima de 4096 px no maior lado, recebe cópia reduzida para edição. Zoom e foco usam coordenadas normalizadas independentes da tela; a mesma função calcula posições CSS e Canvas. O motor 3A desenha foto, escurecimento e gradiente antes do SVG dos templates. Nenhuma biblioteca foi adicionada. Movimentos são limitados a um `requestAnimationFrame` para evitar atualizações acima da taxa de pintura.
+
+**Privacidade e rascunhos** — fotos permanecem em memória na aba, nunca entram no `EditorState` serializado e não são enviadas. Trocar/remover foto ou sair revoga a URL e fecha o `ImageBitmap`. Recuperar rascunho restaura somente dados e personalização, sem simular referência persistente para uma foto temporária.
+
+**Comandos finais da 3B** — `npm ci --cache /tmp/runlab-npm-cache`, `npm test` (41/41), `npm run lint` e `npm run build` concluídos com sucesso. O cache explícito foi necessário porque o cache padrão do npm no ambiente não era gravável. O teste funcional do Chromium executou T1–T25, Pillow decodificou os PNGs e a inspeção visual comparou prévia, Story, Feed e transparência.
+
+**Limitações conhecidas da 3B** — Safari/iOS, Android real, menu de compartilhamento nativo, aplicativos receptores e prévia Vercel não foram testados. Web Share varia por navegador e pode recusar PNG. Pinça para zoom não foi implementada; há slider por toque/teclado. O fallback sem `createImageBitmap` depende da decodificação nativa do elemento de imagem. O teste de recursos acompanha URLs, não substitui perfil de heap em aparelho intermediário.
+
+**Próxima ação** — revisar o PR e a prévia Vercel em celular real: fotografar ou escolher JPEG, ajustar com toque, alternar Story/Feed, baixar, compartilhar e conferir os PNGs na galeria. Só depois dessa evidência marcar a Etapa 3 como concluída.

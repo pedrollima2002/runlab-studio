@@ -26,6 +26,13 @@ export type StickerData = {
   metrics: StickerMetric[]
 }
 
+export type StickerPhoto = {
+  url: string
+  placement: Record<string, string>
+  darkness: number
+  gradient: number
+}
+
 type StickerAppearance = {
   accentColor: AccentColor
   textColor: TextColor
@@ -99,23 +106,39 @@ export function Sticker({
   template = 'Performance',
   data = defaultData,
   appearance,
+  photo,
+  showSafeArea = false,
 }: {
   template?: Template
   data?: StickerData
   appearance?: StickerAppearance
+  photo?: StickerPhoto
+  showSafeArea?: boolean
 }) {
   const defaults = templateDefaults[template]
   const selectedAppearance = appearance ?? { ...defaults, mode: 'full' as const }
+  const photoGradient = photo?.gradient ?? 0
+  const cleanPhoto = template === 'Clean'
   const style = {
     '--sticker-accent': accentColors[selectedAppearance.accentColor].value,
     '--sticker-text': textColors[selectedAppearance.textColor].value,
+    '--photo-darkness': photo?.darkness ?? 0,
+    '--photo-gradient-top': photoGradient * (cleanPhoto ? .86 : .25),
+    '--photo-gradient-middle': photoGradient * (cleanPhoto ? .18 : 0),
+    '--photo-gradient-bottom': photoGradient * (cleanPhoto ? .78 : 1),
   } as CSSProperties
 
   return <article
     aria-label={`Figurinha ${template}`}
-    className={`sticker sticker-${template.toLowerCase()} sticker-${selectedAppearance.layout} sticker-${selectedAppearance.mode}`}
+    className={`sticker sticker-${template.toLowerCase()} sticker-${selectedAppearance.layout} sticker-${selectedAppearance.mode}${photo ? ' sticker-photo' : ''}`}
     style={style}
   >
+    {photo && <div className="sticker-photo-layer" aria-hidden="true">
+      <img alt="" draggable={false} src={photo.url} style={photo.placement} />
+      <span className="photo-darkness" />
+      <span className="photo-gradient" />
+    </div>}
     <TemplateComposition data={data} template={template} />
+    {showSafeArea && <span className="safe-area-guide" aria-hidden="true" />}
   </article>
 }

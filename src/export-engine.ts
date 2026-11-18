@@ -1,5 +1,6 @@
 import type { StickerData, StickerMetric } from './preview.tsx'
 import { accentColors, textColors, type Appearance, type Template } from './studio-config.ts'
+import { calculatePhotoPlacement, normalizePhotoAdjustments, type PhotoAdjustments } from './photo.ts'
 
 export const exportFormats = ['transparent', 'story', 'feed'] as const
 export type ExportFormat = typeof exportFormats[number]
@@ -41,6 +42,13 @@ type SvgPlan = {
   width: number
   height: number
   svg: string
+}
+
+export type PhotoComposition = {
+  source: CanvasImageSource
+  width: number
+  height: number
+  adjustments: PhotoAdjustments
 }
 
 function escapeXml(value: string): string {
@@ -125,7 +133,12 @@ function background(template: Template, width: number, height: number, accent: s
   return `<rect width="${width}" height="${height}" fill="url(#dark-bg)"/><circle cx="${width * .92}" cy="${height * .30}" r="${width * .55}" fill="${accent}" opacity=".12"/>`
 }
 
-export function createExportSvg(data: StickerData, appearance: Appearance, format: ExportFormat): SvgPlan {
+export function createExportSvg(
+  data: StickerData,
+  appearance: Appearance,
+  format: ExportFormat,
+  options: { hasPhoto?: boolean } = {},
+): SvgPlan {
   const { width, height } = exportFormatDetails[format]
   const transparent = format === 'transparent'
   const compact = format !== 'story'
@@ -135,21 +148,21 @@ export function createExportSvg(data: StickerData, appearance: Appearance, forma
   const margin = compact ? 82 : 96
   const titleLines = wrapExportText(data.title, compact ? 25 : 28, 2)
   const defs = `<defs><linearGradient id="dark-bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#252d39"/><stop offset=".72" stop-color="#0b0e13"/></linearGradient><linearGradient id="clean-bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf2"/><stop offset="1" stop-color="#e9dfd1"/></linearGradient></defs>`
-  const bg = transparent ? '' : background(template, width, height, accent)
+  const bg = transparent || options.hasPhoto ? '' : background(template, width, height, accent)
   let content = ''
 
   if (template === 'Minimal') {
     const titleY = compact ? 350 : 620
     const metricsY = compact ? 650 : 1020
-    content = `${brand(margin, compact ? 125 : 150, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 130)}" width="180" height="12" rx="6" fill="${accent}"/>`
+    content = `${brand(margin, compact ? 125 : 270, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 220)}" width="180" height="12" rx="6" fill="${accent}"/>`
   } else if (template === 'Clean') {
     const courseY = compact ? 300 : 520
     const metricsY = compact ? 680 : 1120
-    content = `${textLines(titleLines, margin, compact ? 150 : 175, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 355}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 150}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}${brand(width - margin, height - (compact ? 72 : 90), color, accent, 'end')}`
+    content = `${textLines(titleLines, margin, compact ? 150 : 280, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 430}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 270}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}${brand(width - margin, height - (compact ? 72 : 240), color, accent, 'end')}`
   } else {
-    const courseY = compact ? 180 : 275
+    const courseY = compact ? 180 : 330
     const panelY = compact ? 520 : 900
-    content = `${brand(margin, compact ? 115 : 145, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 460, accent)}<path d="M${margin} ${panelY} V${height - margin}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, compact)}`
+    content = `${brand(margin, compact ? 115 : 270, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 420, accent)}<path d="M${margin} ${panelY} V${height - (compact ? margin : 220)}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, compact)}`
   }
 
   return {
@@ -157,6 +170,38 @@ export function createExportSvg(data: StickerData, appearance: Appearance, forma
     height,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${defs}${bg}${content}</svg>`,
   }
+}
+
+function drawPhotoComposition(
+  context: CanvasRenderingContext2D,
+  photo: PhotoComposition,
+  width: number,
+  height: number,
+  template: Template,
+): void {
+  const adjustments = normalizePhotoAdjustments(photo.adjustments)
+  const placement = calculatePhotoPlacement(photo.width, photo.height, width, height, adjustments)
+  context.fillStyle = '#0b0e13'
+  context.fillRect(0, 0, width, height)
+  context.drawImage(photo.source, placement.left, placement.top, placement.width, placement.height)
+
+  if (adjustments.darkness > 0) {
+    context.fillStyle = `rgba(0, 0, 0, ${adjustments.darkness})`
+    context.fillRect(0, 0, width, height)
+  }
+
+  const gradient = context.createLinearGradient(0, 0, 0, height)
+  if (template === 'Clean') {
+    gradient.addColorStop(0, `rgba(255, 250, 242, ${adjustments.gradient * .86})`)
+    gradient.addColorStop(.48, `rgba(255, 250, 242, ${adjustments.gradient * .18})`)
+    gradient.addColorStop(1, `rgba(255, 250, 242, ${adjustments.gradient * .78})`)
+  } else {
+    gradient.addColorStop(0, `rgba(11, 14, 19, ${adjustments.gradient * .25})`)
+    gradient.addColorStop(.42, 'rgba(11, 14, 19, 0)')
+    gradient.addColorStop(1, `rgba(11, 14, 19, ${adjustments.gradient})`)
+  }
+  context.fillStyle = gradient
+  context.fillRect(0, 0, width, height)
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -213,16 +258,24 @@ function cropTransparentCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
   return cropped
 }
 
-export async function renderExport(data: StickerData, appearance: Appearance, format: ExportFormat, distance: string): Promise<ExportResult> {
+export async function renderExport(
+  data: StickerData,
+  appearance: Appearance,
+  format: ExportFormat,
+  distance: string,
+  photo?: PhotoComposition,
+): Promise<ExportResult> {
   if (!document.createElement('canvas').getContext) throw new Error('Exportação por Canvas não é suportada neste navegador.')
   await document.fonts?.ready
-  const plan = createExportSvg(data, appearance, format)
+  const includesPhoto = Boolean(photo && format !== 'transparent')
+  const plan = createExportSvg(data, appearance, format, { hasPhoto: includesPhoto })
   const image = await loadSvg(plan.svg)
   const canvas = document.createElement('canvas')
   canvas.width = plan.width
   canvas.height = plan.height
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas 2D indisponível neste navegador.')
+  if (photo && includesPhoto) drawPhotoComposition(context, photo, plan.width, plan.height, appearance.template)
   context.drawImage(image, 0, 0, plan.width, plan.height)
   const output = format === 'transparent' ? cropTransparentCanvas(canvas) : canvas
   const blob = await canvasToBlob(output)

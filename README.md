@@ -14,7 +14,7 @@ npm test
 npm run dev
 ```
 
-`npm test` cobre parsing de distância e tempo, validação e cálculo de ritmo. `npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Os testes automatizados, lint e build não substituem os testes visuais, funcionais ou de acessibilidade.
+`npm test` cobre distância, tempo, pace, personalização, histórico, rascunhos, exportação, validação de fotos e enquadramento. `npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Os testes automatizados, lint e build não substituem os testes visuais, funcionais, de acessibilidade ou em aparelhos reais.
 
 | Rota | Tela |
 | --- | --- |
@@ -28,6 +28,14 @@ npm run dev
 
 No Estúdio, os mesmos dados alimentam Minimal, Performance e Clean. É possível ajustar título, data, métricas opcionais, cores compatíveis, visibilidade e organização. A troca de aparência ou formato não altera distância, tempo nem o pace calculado.
 
+### Fotografias e enquadramento
+
+O usuário pode selecionar localmente fotografias JPEG/JPG, PNG ou WebP de até **15 MB e 80 megapixels**. SVG e HEIC/HEIF não são aceitos. O navegador aplica a orientação da imagem, inclusive metadados EXIF, e reduz internamente o maior lado para 4096 px quando necessário para tornar a edição mais segura em memória. A proporção original nunca é esticada.
+
+A foto pode ser substituída, removida, centralizada e restaurada. O enquadramento usa foco normalizado e zoom de 1× a 3×: arraste na prévia com mouse ou um dedo, ou use o slider acessível. Story e Feed recalculam automaticamente o recorte para suas proporções. Escurecimento e gradiente controlam a legibilidade; a guia tracejada existe apenas no editor e não entra no PNG. Pinça para zoom não foi implementada, pois o slider oferece um comportamento consistente entre navegadores.
+
+A fotografia fica somente na aba atual. Ela não é enviada, não entra no `localStorage`, não vira Base64 e precisa ser selecionada novamente após fechar ou recarregar. Dados, métricas e personalização continuam recuperáveis pelo rascunho existente sem URL quebrada.
+
 ### Exportação de imagens
 
 O Estúdio gera três modalidades reais de PNG:
@@ -40,13 +48,15 @@ O Estúdio gera três modalidades reais de PNG:
 
 A composição é criada no próprio navegador: o RUNLAB monta um SVG vetorial com os dados e parâmetros visuais compartilhados pela prévia, aguarda as fontes disponíveis, rasteriza em Canvas na resolução final e codifica o PNG. Não há serviço externo de imagem, upload ou armazenamento do arquivo. URLs temporárias são revogadas após o uso.
 
-Chrome/Chromium desktop foi exercitado com download e decodificação dos arquivos. As larguras de 360, 390, 768 e 1280 px foram verificadas no Chromium, mas isso não equivale a um teste em aparelho real. Safari/iOS, outros navegadores móveis e o download a partir da prévia da Vercel ainda precisam de validação manual. Em PNG transparente, o contraste final depende do fundo onde a figurinha será aplicada.
+Story e Feed incorporam a fotografia enquadrada, o contraste e as métricas. O PNG transparente mantém somente elementos e textos da figurinha, mesmo quando existe uma foto selecionada. O botão **Compartilhar** usa Web Share API com arquivo PNG somente após toque/clique explícito; quando o navegador não oferece esse recurso, o download permanece disponível. Isso não publica automaticamente no Instagram.
+
+Chrome/Chromium desktop foi exercitado com upload, enquadramento, download e decodificação dos arquivos; toque e Web Share foram verificados por emulação. As larguras de 360, 390, 768 e 1280 px foram testadas no Chromium, mas isso não equivale a um aparelho real. Safari/iOS, compartilhamento nativo real, outros navegadores móveis e a prévia da Vercel ainda precisam de validação manual. Em PNG transparente, o contraste final depende do fundo onde a figurinha será aplicada.
 
 ### Histórico, rascunho e restauração
 
 Os botões **Desfazer** e **Refazer** cobrem dados e aparência. Fora dos campos, use `Ctrl + Z`/`Cmd + Z` e `Ctrl + Shift + Z`/`Cmd + Shift + Z`; dentro dos inputs, o comportamento nativo de edição é preservado.
 
-O salvamento de rascunho é opcional e começa desativado. Quando ativado, guarda apenas o estado necessário no `localStorage` daquele navegador, sem conta, servidor ou sincronização. Ao voltar, o usuário escolhe recuperar ou começar novamente; o pace é sempre recalculado. **Restaurar padrão** preserva os dados da corrida, enquanto **Nova figurinha** pede confirmação e reinicia dados e aparência. Rascunhos são excluídos somente por uma ação separada e confirmada.
+O salvamento de rascunho é opcional e começa desativado. Quando ativado, guarda apenas dados e personalização no `localStorage` daquele navegador, sem conta, servidor, fotografia ou sincronização. Ao voltar, o usuário escolhe recuperar ou começar novamente; o pace é sempre recalculado. **Restaurar padrão** preserva os dados da corrida, enquanto **Nova figurinha** pede confirmação e reinicia dados, aparência e fotografia da aba. Rascunhos são excluídos somente por uma ação separada e confirmada.
 
 ## Configuração inicial pelo usuário
 
