@@ -64,10 +64,11 @@ Regras desta etapa:
 - Tempo: tempo decorrido, tempo de cronômetro e tempo em movimento permanecem distintos. Tempo em movimento só aparece quando o arquivo o fornece de forma explícita.
 - Pace: usa primeiro o tempo de cronômetro identificado e, na ausência dele, o tempo decorrido; a base é mostrada na interface.
 - Frequência cardíaca: usa resumo válido e, quando ele não existe, amostras válidas. Zero, valores não finitos e valores acima de 250 bpm são ignorados.
-- Elevação: somente um resumo confiável fornecido pelo arquivo é exibido. O RUNLAB ainda não soma altitudes brutas.
+- Elevação FIT: `session.total_ascent` e `session.total_descent`, já convertidos para metros pelo parser, têm precedência e zero é um valor válido. Na ausência de um deles, voltas só são agregadas quando distância, cronômetro ou limites temporais comprovam cobertura integral sem sobreposição; sessão e voltas nunca são somadas juntas.
+- Elevação TCX: amostras de altitude absoluta continuam preservadas, mas não são transformadas por soma ingênua em subida/descida. Sem um resumo explícito reconhecido, as duas métricas permanecem indisponíveis e a interface explica a limitação.
 - Timestamps: registros são ordenados e duplicatas consolidadas. Strings sem fuso horário são descartadas para não variar a duração conforme o dispositivo.
 
-A cobertura local usa uma fixture FIT pequena com CRC válido e uma fixture TCX v2 equivalente, ambas com valores de referência conhecidos (10 km, 54:40 e 5:28/km), além de TCX sem GPS/FC e casos corrompidos. Isso demonstra os campos exercitados, não compatibilidade ampla com marcas ou todos os exportadores. Arquivos reais de relógios diferentes, Safari/iOS e Android real ainda precisam de validação pela prévia do PR.
+A cobertura local usa duas fixtures FIT sintéticas com CRC válido — uma referência de 10 km e outra anônima de 21,10 km, 1:50:34, 36 m de subida e 34 m de descida — e fixtures TCX v2, inclusive com altitude sem resumo acumulado. Também cobre zero válido, sessões/voltas, múltiplas sessões, pausas, campos ausentes e arquivos corrompidos. Isso demonstra os campos exercitados, não compatibilidade ampla com marcas ou todos os exportadores. Os arquivos pessoais `Zepp20261115043908.fit` e `.tcx` não estavam disponíveis neste ambiente e não foram executados nem incorporados ao repositório. Arquivos reais de relógios diferentes, Safari/iOS e Android real ainda precisam de validação pela prévia do PR.
 
 ### Histórico, rascunho e restauração
 

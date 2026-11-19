@@ -30,6 +30,17 @@ function formatDistance(value: number | null): string {
   return value === null ? 'Não disponível' : `${(value / 1_000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`
 }
 
+function formatElevation(value: number | null): string {
+  return value === null ? 'Não disponível' : `${Math.round(value)} m`
+}
+
+function elevationDetail(metric: ActivityMetric, activity: NormalizedActivity): string {
+  if (metric.source === 'fit-session') return 'Resumo da sessão FIT, já normalizado em metros pelo parser.'
+  if (metric.source === 'fit-laps') return 'Soma das voltas FIT com cobertura integral validada.'
+  if (activity.source.format === 'tcx' && activity.source.availableFields.includes('altitude')) return 'O TCX contém altitude, mas não um resumo explícito confiável.'
+  return 'O arquivo não fornece um resumo confiável para esta métrica.'
+}
+
 function formatDate(value: string | null): string {
   if (!value) return 'Não disponível'
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -108,8 +119,9 @@ function ActivitySummary({ activity, onClear, onReplace }: { activity: Normalize
         <MetricCard label="FC máxima" value={metrics.maximumHeartRateBpm.value === null ? 'Dados de frequência cardíaca não disponíveis' : `${Math.round(metrics.maximumHeartRateBpm.value)} bpm`} />
         <MetricCard label="Tempo decorrido" value={metricValue(metrics.elapsedSeconds, formatActivityDuration)} />
         <MetricCard label="Tempo de cronômetro" value={metricValue(metrics.timerSeconds, formatActivityDuration)} />
-        <MetricCard label="Tempo em movimento" value={metricValue(metrics.movingSeconds, formatActivityDuration)} detail={metrics.movingSeconds.value === null ? 'Não é estimado quando o arquivo não o identifica com segurança.' : undefined} />
-        <MetricCard label="Elevação acumulada" value={metrics.elevationGainMeters.value === null ? 'Não disponível' : `${Math.round(metrics.elevationGainMeters.value)} m`} detail={metrics.elevationGainMeters.value === null ? 'O RUNLAB não soma altitude bruta nesta etapa.' : 'Resumo fornecido pelo arquivo.'} />
+        <MetricCard label="Tempo em movimento" value={metricValue(metrics.movingSeconds, formatActivityDuration)} detail={metrics.movingSeconds.value === null ? 'Não é estimado nem copiado do cronômetro sem uma métrica independente.' : 'Métrica explicitamente informada pelo arquivo.'} />
+        <MetricCard label="Subida acumulada" value={metricValue(metrics.ascentMeters, formatElevation)} detail={elevationDetail(metrics.ascentMeters, activity)} />
+        <MetricCard label="Descida acumulada" value={metricValue(metrics.descentMeters, formatElevation)} detail={elevationDetail(metrics.descentMeters, activity)} />
       </div>
     </section>
 

@@ -120,9 +120,16 @@ export function parseTcxActivity(xml: string, fileName: string): NormalizedActiv
 
   const laps: ActivityLap[] = lapMetrics.map((lap) => ({
     startedAt: lap.start,
+    endedAt: null,
     distanceMeters: lap.distance !== null && lap.distance >= 0 ? lap.distance : null,
     timerSeconds: lap.seconds !== null && lap.seconds > 0 ? lap.seconds : null,
+    ascentMeters: null,
+    descentMeters: null,
   }))
+
+  if (samples.some((sample) => sample.altitudeMeters !== null)) {
+    warnings.push('O TCX contém altitude absoluta, mas não um resumo confiável de subida/descida; essas métricas permanecem indisponíveis até uma metodologia validada.')
+  }
 
   return normalizeActivity({
     format: 'tcx',

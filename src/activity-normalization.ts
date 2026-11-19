@@ -42,6 +42,11 @@ function metric(value: unknown, source: ActivityMetricSource, note?: string): Ac
   return { value, status: 'available', source, ...(note ? { note } : {}) }
 }
 
+function nonNegativeMetric(value: unknown, source: ActivityMetricSource, note?: string): ActivityMetric {
+  if (!finiteNonNegative(value) || !source) return missingMetric()
+  return { value, status: 'available', source, ...(note ? { note } : {}) }
+}
+
 function heartRateMetric(value: unknown, source: ActivityMetricSource): ActivityMetric {
   return validHeartRate(value) && source ? { value, status: 'available', source } : missingMetric()
 }
@@ -142,7 +147,8 @@ export function normalizeActivity(candidate: ActivityCandidate): NormalizedActiv
   const summaryMaximumHeartRate = validHeartRate(candidate.maximumHeartRate?.value) ? candidate.maximumHeartRate.value : null
   const averageHeartRate = heartRateMetric(summaryAverageHeartRate ?? average(heartRates), summaryAverageHeartRate ? candidate.averageHeartRate!.source : heartRates.length ? (candidate.format === 'fit' ? 'fit-records' : 'tcx-trackpoints') : null)
   const maximumHeartRate = heartRateMetric(summaryMaximumHeartRate ?? (heartRates.length ? Math.max(...heartRates) : null), summaryMaximumHeartRate ? candidate.maximumHeartRate!.source : heartRates.length ? (candidate.format === 'fit' ? 'fit-records' : 'tcx-trackpoints') : null)
-  const elevationGain = metric(candidate.elevationGain?.value, candidate.elevationGain?.source ?? null)
+  const ascent = nonNegativeMetric(candidate.ascent?.value, candidate.ascent?.source ?? null)
+  const descent = nonNegativeMetric(candidate.descent?.value, candidate.descent?.source ?? null)
 
   const paceTimeBasis = timer.value !== null ? 'timer' : elapsed.value !== null ? 'elapsed' : null
   const pace = calculateImportedPace(paceTimeBasis === 'timer' ? timer.value : elapsed.value, distance.value)
@@ -167,7 +173,8 @@ export function normalizeActivity(candidate: ActivityCandidate): NormalizedActiv
       paceSecondsPerKilometer: paceMetric,
       averageHeartRateBpm: averageHeartRate,
       maximumHeartRateBpm: maximumHeartRate,
-      elevationGainMeters: elevationGain,
+      ascentMeters: ascent,
+      descentMeters: descent,
     },
     paceTimeBasis,
     samples,

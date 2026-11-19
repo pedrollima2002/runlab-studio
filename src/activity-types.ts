@@ -4,6 +4,7 @@ export type ActivityMetricStatus = 'available' | 'missing' | 'inconsistent'
 
 export type ActivityMetricSource =
   | 'fit-session'
+  | 'fit-laps'
   | 'fit-records'
   | 'tcx-laps'
   | 'tcx-trackpoints'
@@ -34,8 +35,11 @@ export type ActivitySample = {
 
 export type ActivityLap = {
   startedAt: string | null
+  endedAt: string | null
   distanceMeters: number | null
   timerSeconds: number | null
+  ascentMeters: number | null
+  descentMeters: number | null
 }
 
 export type NormalizedActivity = {
@@ -55,7 +59,8 @@ export type NormalizedActivity = {
     paceSecondsPerKilometer: ActivityMetric
     averageHeartRateBpm: ActivityMetric
     maximumHeartRateBpm: ActivityMetric
-    elevationGainMeters: ActivityMetric
+    ascentMeters: ActivityMetric
+    descentMeters: ActivityMetric
   }
   paceTimeBasis: 'timer' | 'elapsed' | null
   samples: ActivitySample[]
@@ -79,7 +84,8 @@ export type ActivityCandidate = {
   moving?: CandidateMetric
   averageHeartRate?: CandidateMetric
   maximumHeartRate?: CandidateMetric
-  elevationGain?: CandidateMetric
+  ascent?: CandidateMetric
+  descent?: CandidateMetric
   samples?: Array<{
     timestamp: Date | string
     distanceMeters?: number | null
