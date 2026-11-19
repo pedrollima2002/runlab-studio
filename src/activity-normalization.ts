@@ -73,6 +73,7 @@ function normalizeSamples(candidate: ActivityCandidate, warnings: string[]): Act
       ...(typeof sample.altitudeMeters === 'number' && Number.isFinite(sample.altitudeMeters) ? { altitudeMeters: sample.altitudeMeters } : {}),
       ...(finiteNonNegative(sample.speedMetersPerSecond) ? { speedMetersPerSecond: sample.speedMetersPerSecond } : {}),
       ...(validPosition ? { position: validPosition } : {}),
+      ...(sample.segmentId ? { segmentId: sample.segmentId } : {}),
       originalIndex,
     }]
   })

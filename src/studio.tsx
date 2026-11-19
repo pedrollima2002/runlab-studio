@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { Calculator, CheckCircle2, ChevronDown, Crosshair, Download, ImageOff, ImagePlus, LoaderCircle, Redo2, RotateCcw, ScanLine, Share2, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
 import { enableManualMetricEditing, restoreImportedMetrics } from './activity-to-studio'
 import { templates } from './demo'
@@ -39,6 +39,7 @@ import {
   type TextColor,
 } from './studio-config'
 import { clearImportedSessionMark, importedSessionWasLost, useStudioSession } from './studio-session'
+import { createRouteDrawing } from './route-geometry'
 
 const metricLabels: Record<MetricKey, string> = {
   distance: 'Distância',
@@ -80,7 +81,7 @@ function Group({ title, children, open = false }: { title: string; children: Rea
 }
 
 export function Studio() {
-  const { editorState: sessionEditorState, setEditorState: setSessionEditorState } = useStudioSession()
+  const { editorState: sessionEditorState, setEditorState: setSessionEditorState, route: sessionRoute, setRoute: setSessionRoute } = useStudioSession()
   const [lostImportedSession] = useState(() => sessionEditorState === null && importedSessionWasLost())
   const [initialEditorState] = useState(() => sessionEditorState ?? (lostImportedSession ? createEmptyEditorState() : createDefaultEditorState()))
   const [draftStartup] = useState(loadDraftStartup)
@@ -101,7 +102,7 @@ export function Studio() {
   const dragState = useRef<{ pointerId: number; x: number; y: number; focalX: number; focalY: number } | null>(null)
   const dragFrame = useRef<number | null>(null)
   const pendingFocus = useRef<{ focalX: number; focalY: number } | null>(null)
-  const { activity, appearance } = history.present
+  const { activity, appearance, routeAppearance } = history.present
   const importedProvenance = history.present.provenance.kind === 'imported' ? history.present.provenance : null
   const importedMetricsLocked = Boolean(importedProvenance && !importedProvenance.edited)
 
@@ -156,6 +157,10 @@ export function Studio() {
   const elevation = activity.elevation.trim()
   const heartRateValid = heartRate === '' || (/^\d+$/.test(heartRate) && Number(heartRate) > 0 && Number(heartRate) <= 250)
   const elevationValid = elevation === '' || (/^\d+(?:[.,]\d+)?$/.test(elevation) && Number(elevation.replace(',', '.')) >= 0)
+  const routeDrawing = useMemo(
+    () => sessionRoute ? createRouteDrawing(sessionRoute, routeAppearance.privacyTrimMeters) : null,
+    [sessionRoute, routeAppearance.privacyTrimMeters],
+  )
 
   const availableMetrics: MetricKey[] = ['distance', 'duration', 'pace']
   if (heartRate && heartRateValid) availableMetrics.push('heartRate')
@@ -178,6 +183,9 @@ export function Studio() {
     title: activity.title.trim() || 'Sua corrida',
     date: formatActivityDate(activity.date),
     metrics: allMetrics.filter((metric) => appearance.visibility[metric.key]),
+    ...(importedProvenance
+      ? { route: sessionRoute && routeDrawing ? { drawing: routeDrawing, appearance: routeAppearance } : null }
+      : {}),
   }
 
   const exportDimensions = exportFormatDetails[exportFormat]
@@ -216,6 +224,10 @@ export function Studio() {
     dispatchHistory({ type: 'update', next: { ...history.present, appearance: nextAppearance } })
   }
 
+  function updateRouteAppearance(next: typeof routeAppearance) {
+    dispatchHistory({ type: 'update', next: { ...history.present, routeAppearance: next } })
+  }
+
   function updateVisibility(metric: MetricKey, visible: boolean) {
     const result = setMetricVisibility(appearance, metric, visible, availableMetrics)
     setVisibilityMessage(result.blocked ? 'Mantenha pelo menos uma métrica visível na figurinha.' : '')
@@ -237,6 +249,7 @@ export function Studio() {
   function recoverDraft() {
     if (!pendingDraft) return
     dispatchHistory({ type: 'update', next: pendingDraft })
+    setSessionRoute(null)
     setPendingDraft(null)
     if (pendingDraft.provenance.kind === 'manual') clearImportedSessionMark()
     setStatusMessage('Rascunho recuperado. O pace foi recalculado a partir da distância e do tempo.')
@@ -250,6 +263,7 @@ export function Studio() {
   function startNewEdition() {
     if (!window.confirm('Iniciar uma nova figurinha e descartar os dados atuais do editor?')) return
     dispatchHistory({ type: 'update', next: createDefaultEditorState() })
+    setSessionRoute(null)
     setPhotoAsset(null)
     setPhotoAdjustments(defaultPhotoAdjustments)
     setPhotoStatus({ state: 'idle', message: '' })
@@ -362,6 +376,7 @@ export function Studio() {
       return
     }
 
+    if (!confirmRoutePrivacy()) return
     setExportStatus({ state: 'processing', message: 'Gerando PNG em alta qualidade…' })
     try {
       const result = await renderExport(stickerData, appearance, exportFormat, activity.distance, currentPhotoComposition())
@@ -386,6 +401,7 @@ export function Studio() {
       setExportStatus({ state: 'error', message: 'Compartilhamento nativo indisponível neste navegador. Use o botão de download.' })
       return
     }
+    if (!confirmRoutePrivacy()) return
 
     setExportStatus({ state: 'processing', message: 'Preparando imagem para compartilhar…' })
     try {
@@ -406,6 +422,19 @@ export function Studio() {
       const reason = error instanceof Error ? error.message : 'Falha inesperada ao compartilhar.'
       setExportStatus({ state: 'error', message: `Não foi possível compartilhar. ${reason} Use o download como alternativa.` })
     }
+  }
+
+  function confirmRoutePrivacy(): boolean {
+    if (!sessionRoute || !routeDrawing?.paths.length || !routeAppearance.visible) return true
+    const key = 'runlab-studio:gps-privacy-warning-seen'
+    try {
+      if (window.sessionStorage.getItem(key) === '1') return true
+    } catch { /* A confirmação ainda será exibida. */ }
+    const accepted = window.confirm('O trajeto GPS pode revelar locais sensíveis, como sua casa ou trabalho. Revise o recorte de privacidade antes de exportar. Deseja continuar?')
+    if (accepted) {
+      try { window.sessionStorage.setItem(key, '1') } catch { /* Sem persistência, a proteção continua funcional. */ }
+    }
+    return accepted
   }
 
   return <>
@@ -584,6 +613,37 @@ export function Studio() {
           <p className="calculation-note">{importedMetricsLocked
             ? `O pace foi preservado da atividade normalizada e usa ${importedProvenance!.reference.durationBasis === 'timer' ? 'o tempo de cronômetro' : 'o tempo decorrido'}. Nenhum tempo em movimento foi inventado.`
             : 'O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.'}</p>
+        </Group>
+
+        <Group title="Trajeto GPS" open>
+          {!importedProvenance ? <p className="field-help">A linha exibida na edição manual é apenas ilustrativa e não representa um percurso GPS real.</p> : sessionRoute && routeDrawing?.paths.length ? <div className="route-controls">
+            <p className="route-status">Trajeto real importado · {sessionRoute.originalPointCount.toLocaleString('pt-BR')} pontos originais · {routeDrawing.simplifiedPointCount.toLocaleString('pt-BR')} no desenho.</p>
+            {sessionRoute.warnings.map((warning) => <p className="field-help" key={warning}>{warning}</p>)}
+            <div className="field-grid">
+              <label className="field">Cor do trajeto
+                <input aria-label="Cor do trajeto" onChange={(event) => updateRouteAppearance({ ...routeAppearance, color: event.target.value })} type="color" value={routeAppearance.color} />
+              </label>
+              <label className="field">Recorte de privacidade
+                <select onChange={(event) => updateRouteAppearance({ ...routeAppearance, privacyTrimMeters: Number(event.target.value) as 0 | 100 | 200 | 500 })} value={routeAppearance.privacyTrimMeters}>
+                  <option value="0">Sem recorte</option><option value="100">100 m no início e fim</option><option value="200">200 m no início e fim</option><option value="500">500 m no início e fim</option>
+                </select>
+              </label>
+            </div>
+            <div className="photo-slider-grid">
+              <label className="range-field"><span>Espessura <output>{routeAppearance.thickness}px</output></span><input max="12" min="1" onChange={(event) => updateRouteAppearance({ ...routeAppearance, thickness: Number(event.target.value) })} step="1" type="range" value={routeAppearance.thickness} /></label>
+              <label className="range-field"><span>Tamanho <output>{routeAppearance.scale.toFixed(2)}×</output></span><input max="1.6" min="0.5" onChange={(event) => updateRouteAppearance({ ...routeAppearance, scale: Number(event.target.value) })} step="0.05" type="range" value={routeAppearance.scale} /></label>
+              <label className="range-field"><span>Posição horizontal <output>{routeAppearance.offsetX}</output></span><input max="80" min="-80" onChange={(event) => updateRouteAppearance({ ...routeAppearance, offsetX: Number(event.target.value) })} step="1" type="range" value={routeAppearance.offsetX} /></label>
+              <label className="range-field"><span>Posição vertical <output>{routeAppearance.offsetY}</output></span><input max="80" min="-80" onChange={(event) => updateRouteAppearance({ ...routeAppearance, offsetY: Number(event.target.value) })} step="1" type="range" value={routeAppearance.offsetY} /></label>
+            </div>
+            <div className="metric-toggles">
+              <label><input checked={routeAppearance.visible} onChange={(event) => updateRouteAppearance({ ...routeAppearance, visible: event.target.checked })} type="checkbox" />Exibir trajeto</label>
+              <label><input checked={routeAppearance.showMarkers} onChange={(event) => updateRouteAppearance({ ...routeAppearance, showMarkers: event.target.checked })} type="checkbox" />Marcar início e fim</label>
+            </div>
+            <p className="calculation-note">O recorte altera somente o desenho. Distância, tempo e demais métricas esportivas permanecem intactos. Ele reduz a exposição de locais sensíveis, mas não garante anonimato completo.</p>
+          </div> : <div className="route-unavailable">
+            <p>{sessionRoute && routeDrawing?.warning ? routeDrawing.warning : 'Percurso GPS não disponível nesta atividade.'}</p>
+            <p className="field-help">A figurinha e as métricas continuam editáveis. Importe novamente um FIT/TCX com pelo menos dois pontos válidos para usar um trajeto real.</p>
+          </div>}
         </Group>
 
         <Group title="Fotografia" open>

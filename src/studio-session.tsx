@@ -1,18 +1,22 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { EditorState } from './studio-config.ts'
+import type { ActivityRoute } from './route-geometry.ts'
 
 export const IMPORTED_ACTIVITY_SESSION_KEY = 'runlab-studio:imported-session'
 
 type StudioSessionValue = {
   editorState: EditorState | null
   setEditorState: (state: EditorState | null) => void
+  route: ActivityRoute | null
+  setRoute: (route: ActivityRoute | null) => void
 }
 
 const StudioSessionContext = createContext<StudioSessionValue | null>(null)
 
 export function StudioSessionProvider({ children }: { children: ReactNode }) {
   const [editorState, setEditorState] = useState<EditorState | null>(null)
-  const value = useMemo(() => ({ editorState, setEditorState }), [editorState])
+  const [route, setRoute] = useState<ActivityRoute | null>(null)
+  const value = useMemo(() => ({ editorState, setEditorState, route, setRoute }), [editorState, route])
   return <StudioSessionContext.Provider value={value}>{children}</StudioSessionContext.Provider>
 }
 

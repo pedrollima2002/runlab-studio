@@ -51,6 +51,15 @@ describe('templates e personalização', () => {
 })
 
 describe('histórico do editor', () => {
+  test('T49 desfaz e refaz a personalização do trajeto', () => {
+    const initial = createEditorHistory()
+    const changed = editorHistoryReducer(initial, { type: 'update', next: { ...initial.present, routeAppearance: { ...initial.present.routeAppearance, color: '#123ABC', thickness: 8 } } })
+    const undone = editorHistoryReducer(changed, { type: 'undo' })
+    const redone = editorHistoryReducer(undone, { type: 'redo' })
+    assert.equal(undone.present.routeAppearance.color, '#F97316')
+    assert.equal(redone.present.routeAppearance.thickness, 8)
+  })
+
   test('desfaz e refaz uma alteração de cor', () => {
     const initial = createEditorHistory()
     const changedState = {
@@ -136,6 +145,23 @@ describe('histórico do editor', () => {
 })
 
 describe('rascunhos e restauração', () => {
+  test('T35 e T48 rascunhos preservam ajustes, mas nunca coordenadas', () => {
+    const state = createDefaultEditorState()
+    state.routeAppearance = { ...state.routeAppearance, color: '#123ABC', privacyTrimMeters: 200 }
+    const serialized = serializeDraft(state)
+    assert.doesNotMatch(serialized, /latitude|longitude|segments|position_lat/)
+    const recovered = parseDraft(serialized)
+    assert.equal(recovered.ok, true)
+    if (recovered.ok) assert.deepEqual(recovered.state.routeAppearance, state.routeAppearance)
+  })
+
+  test('migra rascunho da versão 2 com padrões seguros para o trajeto', () => {
+    const state = createDefaultEditorState()
+    const legacy = JSON.stringify({ version: 2, editor: { activity: state.activity, appearance: state.appearance, provenance: state.provenance } })
+    const recovered = parseDraft(legacy)
+    assert.equal(recovered.ok, true)
+    if (recovered.ok) assert.equal(recovered.state.routeAppearance.privacyTrimMeters, 0)
+  })
   test('serializa e recupera dados e personalização com versão explícita', () => {
     const state = createDefaultEditorState()
     state.activity.distance = '2,5'

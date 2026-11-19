@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { buildExportFilename, createExportSvg, exportFormatDetails, wrapExportText } from './export-engine.ts'
 import { createDefaultEditorState } from './studio-config.ts'
 import type { StickerData } from './sticker-data.ts'
+import { createRouteDrawing, type ActivityRoute } from './route-geometry.ts'
 
 const data: StickerData = {
   title: 'Corrida de São João',
@@ -122,5 +123,78 @@ describe('planejamento da exportação', () => {
   it('cria nome previsível e seguro para download', () => {
     assert.equal(buildExportFilename('10,00', 'story'), 'runlab-10-00km-story.png')
     assert.equal(buildExportFilename('', 'transparent'), 'runlab-corridakm-transparent.png')
+  })
+})
+
+describe('Etapa 4D · trajeto na composição canônica', () => {
+  const sourceRoute: ActivityRoute = {
+    format: 'fit', warnings: [], originalPointCount: 3,
+    segments: [[
+      { latitude: 0, longitude: 0, timestamp: '2026-01-01T00:00:00Z' },
+      { latitude: .001, longitude: .002, timestamp: '2026-01-01T00:00:10Z' },
+      { latitude: .002, longitude: .001, timestamp: '2026-01-01T00:00:20Z' },
+    ]],
+  }
+  const state = createDefaultEditorState()
+  const routeData: StickerData = { ...data, route: { drawing: createRouteDrawing(sourceRoute)!, appearance: state.routeAppearance } }
+
+  it('T24 apresenta rota real sem manter o desenho ilustrativo', () => {
+    const svg = createExportSvg(routeData, state.appearance, 'story').svg
+    assert.match(svg, /data-route="real"/)
+    assert.doesNotMatch(svg, /M-35 141/)
+  })
+
+  it('T25 preserva a cor escolhida', () => {
+    const customized = { ...routeData, route: { ...routeData.route!, appearance: { ...state.routeAppearance, color: '#123ABC' } } }
+    assert.match(createExportSvg(customized, state.appearance, 'story').svg, /stroke="#123ABC"/)
+  })
+
+  it('T26 preserva a espessura', () => {
+    const customized = { ...routeData, route: { ...routeData.route!, appearance: { ...state.routeAppearance, thickness: 9 } } }
+    assert.match(createExportSvg(customized, state.appearance, 'story').svg, /stroke-width="9"/)
+  })
+
+  it('T27 e T28 preserva tamanho e posição', () => {
+    const customized = { ...routeData, route: { ...routeData.route!, appearance: { ...state.routeAppearance, scale: 1.4, offsetX: 12, offsetY: -8 } } }
+    const svg = createExportSvg(customized, state.appearance, 'feed').svg
+    assert.match(svg, /translate\(12 -8\).*scale\(1.4\)/)
+  })
+
+  it('T29 oculta e reexibe sem perder a geometria', () => {
+    const hidden = { ...routeData, route: { ...routeData.route!, appearance: { ...state.routeAppearance, visible: false } } }
+    assert.doesNotMatch(createExportSvg(hidden, state.appearance, 'story').svg, /data-route="real"/)
+    assert.match(createExportSvg(routeData, state.appearance, 'story').svg, /data-route="real"/)
+  })
+
+  it('T30 mantém a rota nos três templates', () => {
+    for (const template of ['Minimal', 'Performance', 'Clean'] as const) {
+      assert.match(createExportSvg(routeData, { ...state.appearance, template }, 'story').svg, /data-route="real"/)
+    }
+  })
+
+  it('T37 exporta a geometria já recortada', () => {
+    const trimmed = createRouteDrawing(sourceRoute, 50)!
+    const svg = createExportSvg({ ...data, route: { drawing: trimmed, appearance: state.routeAppearance } }, state.appearance, 'story').svg
+    assert.ok(trimmed.paths.every((path) => svg.includes(path)))
+  })
+
+  it('T38 a T40 inclui a rota em transparente, Story e Feed nas dimensões corretas', () => {
+    for (const format of ['transparent', 'story', 'feed'] as const) {
+      const plan = createExportSvg(routeData, state.appearance, format)
+      assert.deepEqual([plan.width, plan.height], [exportFormatDetails[format].width, exportFormatDetails[format].height])
+      assert.match(plan.svg, /data-route="real"/)
+    }
+  })
+
+  it('T41 usa um plano SVG determinístico compartilhado por prévia e PNG', () => {
+    assert.equal(createExportSvg(routeData, state.appearance, 'story').svg, createExportSvg(routeData, state.appearance, 'story').svg)
+  })
+
+  it('T42 usa escala uniforme e T43 preserva métricas e fundo', () => {
+    const svg = createExportSvg(routeData, state.appearance, 'story').svg
+    const routeTransform = svg.match(/data-route="real" transform="([^"]+)/)?.[1] ?? ''
+    assert.doesNotMatch(routeTransform, /scale\([^ )]+ [^ )]+\)/)
+    assert.match(svg, /Ritmo médio/)
+    assert.match(svg, /<rect width="1080" height="1920"/)
   })
 })

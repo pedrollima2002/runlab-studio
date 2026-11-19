@@ -82,10 +82,12 @@ describe('integração da atividade com o Estúdio', () => {
   it('T10 e T11 preserva template, cores e organização ao substituir somente a corrida', () => {
     const base = createDefaultEditorState()
     base.appearance = { ...base.appearance, template: 'Clean', accentColor: 'pink', layout: 'left' }
+    base.routeAppearance = { ...base.routeAppearance, color: '#123ABC', thickness: 7 }
     const adapted = adaptActivityToStudio(activity(), base)
     assert.equal(adapted.appearance.template, 'Clean')
     assert.equal(adapted.appearance.accentColor, 'pink')
     assert.equal(adapted.appearance.layout, 'left')
+    assert.equal(adapted.routeAppearance.color, '#123ABC')
   })
 
   it('T17 substitui todos os dados opcionais da atividade anterior', () => {
@@ -120,6 +122,14 @@ describe('integração da atividade com o Estúdio', () => {
     assert.equal(restored.ok, true)
     assert.doesNotMatch(serialized, /anonimo\.fit|latitude|longitude|samples/)
     if (restored.ok) assert.deepEqual(restored.state, imported)
+  })
+
+  it('T32 e T34 personalização e recorte não alteram métricas esportivas', () => {
+    const adapted = adaptActivityToStudio(activity(), createDefaultEditorState())
+    const original = structuredClone(adapted.activity)
+    adapted.routeAppearance = { ...adapted.routeAppearance, scale: 1.5, offsetX: 20, privacyTrimMeters: 500 }
+    assert.deepEqual(adapted.activity, original)
+    if (adapted.provenance.kind === 'imported') assert.equal(adapted.provenance.reference.distanceMeters, 21_100)
   })
 
   it('recusa integração sem distância, duração ou pace válidos', () => {

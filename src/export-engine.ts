@@ -101,7 +101,21 @@ function brand(x: number, y: number, color: string, accent: string, anchor = 'st
   return `<g aria-label="RUNLAB" data-brand-icon="activity"><g transform="translate(${iconX} ${y - 38}) scale(1.7)" fill="none" stroke="${accent}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></g><text x="${textX}" y="${y}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="5" text-anchor="${anchor}">RUNLAB</text></g>`
 }
 
-function courseArt(x: number, y: number, width: number, height: number, accent: string): string {
+function courseArt(x: number, y: number, width: number, height: number, accent: string, route: StickerData['route']): string {
+  if (route === null) return ''
+  if (route) {
+    const { drawing, appearance } = route
+    if (!appearance.visible || drawing.paths.length === 0) return ''
+    const scale = Math.min(width / 250, height / 180)
+    const left = x + (width - 250 * scale) / 2
+    const top = y + (height - 180 * scale) / 2
+    const transform = `translate(${left} ${top}) scale(${scale}) translate(${appearance.offsetX} ${appearance.offsetY}) translate(125 90) scale(${appearance.scale}) translate(-125 -90)`
+    const paths = drawing.paths.map((path) => `<path d="${path}"/>`).join('')
+    const markers = appearance.showMarkers
+      ? `<circle data-route-marker="start" cx="${drawing.start.x}" cy="${drawing.start.y}" r="${appearance.thickness * 1.5}" fill="${appearance.color}" stroke="none"/><circle data-route-marker="end" cx="${drawing.end.x}" cy="${drawing.end.y}" r="${appearance.thickness * 1.8}" fill="none" stroke="${appearance.color}" stroke-width="${Math.max(1.5, appearance.thickness / 2)}"/>`
+      : ''
+    return `<g data-route="real" transform="${transform}" fill="none" stroke="${appearance.color}" stroke-width="${appearance.thickness}" stroke-linecap="round" stroke-linejoin="round">${paths}${markers}</g>`
+  }
   const scaleX = width / 250
   const scaleY = height / 180
   return `<g transform="translate(${x} ${y}) scale(${scaleX} ${scaleY})" fill="none" stroke="${accent}" stroke-linecap="round" stroke-linejoin="round"><path d="M-35 141 25 115 51 124 70 100 109 91 129 59 170 65 186 43 216 52 260 17 M-23 170 39 140 65 147 88 122 130 111 150 83 182 88 203 69 224 78 269 48 M-45 114 11 89 35 100 55 77 93 70 113 36 155 41 171 18 209 25 245 -4" opacity=".24" stroke-width="1.5"/><path d="m27 125 31-18 24 9 17-28 39-11 13-29 29 4 17 19 27-25" stroke-width="3.5"/><circle cx="27" cy="125" r="5" fill="${accent}" stroke="none"/><circle cx="224" cy="46" r="6" fill="${accent}" stroke="none"/></g>`
@@ -184,15 +198,15 @@ export function createExportSvg(
   if (template === 'Minimal') {
     const titleY = compact ? 350 : 620
     const metricsY = compact ? 650 : 1020
-    content = `${brand(margin, compact ? 125 : 270, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 220)}" width="180" height="12" rx="6" fill="${accent}"/>`
+    content = `${brand(margin, compact ? 125 : 270, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${courseArt(margin, compact ? 430 : 735, width - margin * 2, compact ? 170 : 230, accent, data.route)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 220)}" width="180" height="12" rx="6" fill="${accent}"/>`
   } else if (template === 'Clean') {
     const courseY = compact ? 300 : 520
     const metricsY = compact ? 680 : 1120
-    content = `${textLines(titleLines, margin, compact ? 150 : 280, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 430}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 270}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}${brand(width - margin, height - (compact ? 72 : 240), color, accent, 'end')}`
+    content = `${textLines(titleLines, margin, compact ? 150 : 280, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 430}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 270}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent, data.route)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}${brand(width - margin, height - (compact ? 72 : 240), color, accent, 'end')}`
   } else {
     const courseY = compact ? 180 : 330
     const panelY = compact ? 520 : 900
-    content = `${brand(margin, compact ? 115 : 270, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 420, accent)}<path d="M${margin} ${panelY} V${height - (compact ? margin : 220)}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, appearance.layout, compact)}`
+    content = `${brand(margin, compact ? 115 : 270, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 420, accent, data.route)}<path d="M${margin} ${panelY} V${height - (compact ? margin : 220)}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, appearance.layout, compact)}`
   }
 
   return {

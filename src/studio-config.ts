@@ -44,9 +44,21 @@ export type Appearance = {
   visibility: MetricVisibility
 }
 
+export type RouteAppearance = {
+  color: string
+  thickness: number
+  scale: number
+  offsetX: number
+  offsetY: number
+  visible: boolean
+  showMarkers: boolean
+  privacyTrimMeters: 0 | 100 | 200 | 500
+}
+
 export type EditorState = {
   activity: ActivityData
   appearance: Appearance
+  routeAppearance: RouteAppearance
   provenance: ActivityProvenance
 }
 
@@ -68,7 +80,7 @@ export type DraftParseResult =
   | { ok: false; reason: string }
 
 export const DRAFT_STORAGE_KEY = 'runlab-studio:draft'
-export const DRAFT_VERSION = 2
+export const DRAFT_VERSION = 3
 export const HISTORY_LIMIT = 50
 
 export const accentColors: Record<AccentColor, { label: string; value: string }> = {
@@ -112,6 +124,17 @@ export const defaultAppearance: Appearance = {
   visibility: defaultVisibility,
 }
 
+export const defaultRouteAppearance: RouteAppearance = {
+  color: '#F97316',
+  thickness: 4,
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  visible: true,
+  showMarkers: true,
+  privacyTrimMeters: 0,
+}
+
 export const defaultActivity: ActivityData = {
   distance: '10,00',
   duration: '54:40',
@@ -128,6 +151,7 @@ export function createDefaultEditorState(): EditorState {
       ...defaultAppearance,
       visibility: { ...defaultVisibility },
     },
+    routeAppearance: { ...defaultRouteAppearance },
     provenance: { kind: 'manual' },
   }
 }
@@ -223,6 +247,17 @@ function isAppearance(value: unknown): value is Appearance {
     && metricKeys.every((key) => typeof visibility[key] === 'boolean')
 }
 
+function isRouteAppearance(value: unknown): value is RouteAppearance {
+  if (!isRecord(value)) return false
+  return typeof value.color === 'string' && /^#[0-9a-f]{6}$/i.test(value.color)
+    && typeof value.thickness === 'number' && Number.isFinite(value.thickness) && value.thickness >= 1 && value.thickness <= 12
+    && typeof value.scale === 'number' && Number.isFinite(value.scale) && value.scale >= .5 && value.scale <= 1.6
+    && typeof value.offsetX === 'number' && Number.isFinite(value.offsetX) && value.offsetX >= -80 && value.offsetX <= 80
+    && typeof value.offsetY === 'number' && Number.isFinite(value.offsetY) && value.offsetY >= -80 && value.offsetY <= 80
+    && typeof value.visible === 'boolean' && typeof value.showMarkers === 'boolean'
+    && [0, 100, 200, 500].includes(value.privacyTrimMeters as number)
+}
+
 function isNullableFiniteNumber(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
@@ -247,7 +282,7 @@ function isProvenance(value: unknown): value is ActivityProvenance {
 }
 
 function isEditorState(value: unknown): value is EditorState {
-  if (!isRecord(value) || !isActivityData(value.activity) || !isAppearance(value.appearance) || !isProvenance(value.provenance)) return false
+  if (!isRecord(value) || !isActivityData(value.activity) || !isAppearance(value.appearance) || !isRouteAppearance(value.routeAppearance) || !isProvenance(value.provenance)) return false
 
   const { activity, appearance } = value
   return appearance.visibility.distance
@@ -266,11 +301,15 @@ export function parseDraft(raw: string): DraftParseResult {
 
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed) || (parsed.version !== 1 && parsed.version !== DRAFT_VERSION)) {
+    if (!isRecord(parsed) || ![1, 2, DRAFT_VERSION].includes(parsed.version as number)) {
       return { ok: false, reason: 'A versão do rascunho salvo não é compatível.' }
     }
-    const editor = parsed.version === 1 && isRecord(parsed.editor)
-      ? { ...parsed.editor, provenance: { kind: 'manual' as const } }
+    const editor = isRecord(parsed.editor)
+      ? {
+          ...parsed.editor,
+          ...(parsed.version === 1 ? { provenance: { kind: 'manual' as const } } : {}),
+          ...(parsed.version === DRAFT_VERSION ? {} : { routeAppearance: { ...defaultRouteAppearance } }),
+        }
       : parsed.editor
     if (!isEditorState(editor)) {
       return { ok: false, reason: 'O rascunho salvo contém dados inválidos.' }

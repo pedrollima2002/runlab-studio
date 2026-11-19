@@ -26,6 +26,7 @@ export type ActivityPosition = {
 
 export type ActivitySample = {
   timestamp: string
+  segmentId?: string
   distanceMeters?: number
   heartRateBpm?: number
   altitudeMeters?: number
@@ -93,6 +94,7 @@ export type ActivityCandidate = {
     altitudeMeters?: number | null
     speedMetersPerSecond?: number | null
     position?: ActivityPosition | null
+    segmentId?: string
   }>
   laps?: ActivityLap[]
   availableFields?: string[]

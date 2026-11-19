@@ -203,6 +203,10 @@ details[open] > summary svg { transform: rotate(180deg); }
 .metric-toggles .unavailable-option { opacity: .6; }
 .visibility-message { min-height: 1rem; margin-top: .35rem; }
 .photo-controls { display: grid; gap: .75rem; }
+.route-controls { display: grid; gap: .75rem; }
+.route-status { color: #a7d7b6; font-size: .8rem; }
+.route-unavailable { display: grid; gap: .35rem; border-left: 3px solid #566171; padding: .65rem .75rem; background: #0e131a; font-size: .8rem; }
+.route-unavailable p:first-child { color: #dbe4ef; font-weight: 700; }
 .photo-upload { display: grid; gap: .7rem; border: 1px dashed #566171; border-radius: .75rem; padding: .8rem; background: #0e131a; }
 .photo-upload-selected { border-style: solid; border-color: #9a5a2d; }
 .photo-upload > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; gap: .15rem .55rem; align-items: center; }

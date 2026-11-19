@@ -6,6 +6,7 @@ import { adaptActivityToStudio, canTransferActivityToStudio } from './activity-t
 import type { ActivityMetric, NormalizedActivity } from './activity-types.ts'
 import { createDefaultEditorState, DRAFT_STORAGE_KEY, isMeaningfullyEdited } from './studio-config.ts'
 import { markImportedSession, useStudioSession } from './studio-session.tsx'
+import { extractActivityRoute } from './route-geometry.ts'
 
 type ImportState =
   | { status: 'idle'; message: string }
@@ -188,6 +189,7 @@ export function Analyses() {
 
     const base = studioSession.editorState ?? createDefaultEditorState()
     studioSession.setEditorState(adaptActivityToStudio(activity, base))
+    studioSession.setRoute(extractActivityRoute(activity))
     markImportedSession()
     navigate('/estudio')
   }

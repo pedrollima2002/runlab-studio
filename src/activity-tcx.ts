@@ -79,7 +79,11 @@ export function parseTcxActivity(xml: string, fileName: string): NormalizedActiv
   const activity = activities[0]
   const sport = text(activity['@_Sport'])
   const lapsXml = objects(activity.Lap)
-  const trackpoints = lapsXml.flatMap((lap) => objects(object(lap.Track)?.Trackpoint))
+  const tracks = lapsXml.flatMap((lap, lapIndex) => objects(lap.Track).map((track, trackIndex) => ({
+    segmentId: `lap-${lapIndex}-track-${trackIndex}`,
+    trackpoints: objects(track.Trackpoint),
+  })))
+  const trackpoints = tracks.flatMap((track) => track.trackpoints.map((trackpoint) => ({ trackpoint, segmentId: track.segmentId })))
   const warnings = activities.length > 1 ? ['O TCX contém mais de uma atividade; somente a primeira foi importada.'] : []
 
   const lapMetrics = lapsXml.map((lap) => ({
@@ -96,7 +100,7 @@ export function parseTcxActivity(xml: string, fileName: string): NormalizedActiv
     : []))
   const maximumHeartRates = lapMetrics.flatMap((lap) => lap.maximumHeartRate !== null ? [lap.maximumHeartRate] : [])
 
-  const samples = trackpoints.flatMap((trackpoint) => {
+  const samples = trackpoints.flatMap(({ trackpoint, segmentId }) => {
     const timestamp = text(trackpoint.Time)
     if (!timestamp) return []
     return [{
@@ -106,6 +110,7 @@ export function parseTcxActivity(xml: string, fileName: string): NormalizedActiv
       altitudeMeters: number(trackpoint.AltitudeMeters),
       speedMetersPerSecond: extensionSpeed(trackpoint.Extensions),
       position: position(trackpoint),
+      segmentId,
     }]
   })
   const availableFields: string[] = []
