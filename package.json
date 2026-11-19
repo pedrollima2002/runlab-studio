@@ -5,6 +5,6 @@
   "type": "module",
   "engines": {"node": "^22.12.0 || ^24.0.0"},
   "scripts": {"dev":"vite","test":"node --test --experimental-strip-types src/*.test.ts","lint":"eslint src","build":"tsc --noEmit && vite build","preview":"vite preview"},
-  "dependencies": {"react":"^19.2.0","react-dom":"^19.2.0","react-router-dom":"^7.9.0","lucide-react":"^0.545.0"},
+  "dependencies": {"fast-xml-parser":"^5.12.1","fit-file-parser":"^6.2.10","react":"^19.2.0","react-dom":"^19.2.0","react-router-dom":"^7.9.0","lucide-react":"^0.545.0"},
   "devDependencies": {"vite":"^7.1.0","typescript":"~5.9.3","@types/react":"^19.2.0","@types/react-dom":"^19.2.0","tailwindcss":"^4.1.0","@tailwindcss/vite":"^4.1.0","eslint":"^9.37.0","@eslint/js":"^9.37.0","typescript-eslint":"^8.46.0","eslint-plugin-react-hooks":"^7.0.0"}
 }

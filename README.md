@@ -2,7 +2,7 @@
 
 Estúdio de figurinhas para corrida e painel demonstrativo de análise. O acesso de visitante é livre e o Estúdio exporta imagens localmente, sem conta ou envio dos dados a servidores.
 
-React, TypeScript, Vite, Tailwind CSS, React Router e Lucide. A ilustração do percurso é um SVG local. O projeto roda sem backend, credenciais ou serviços de imagem e fontes.
+React, TypeScript, Vite, Tailwind CSS, React Router e Lucide. A leitura FIT usa `fit-file-parser` e a leitura XML usa `fast-xml-parser`. A ilustração do percurso é um SVG local. O projeto roda sem backend, credenciais ou serviços de imagem e fontes.
 
 ## Executar
 
@@ -14,13 +14,13 @@ npm test
 npm run dev
 ```
 
-`npm test` cobre distância, tempo, pace, personalização, histórico, rascunhos, exportação, validação de fotos e enquadramento. `npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Os testes automatizados, lint e build não substituem os testes visuais, funcionais, de acessibilidade ou em aparelhos reais.
+`npm test` cobre importação FIT/TCX, normalização de atividades, distância, tempo, pace, personalização, histórico, rascunhos, exportação, validação de fotos e enquadramento. `npm run lint` verifica o código, `npm run build` checa tipos e gera `dist/`, e `npm run preview` serve esse build para conferência local. Os testes automatizados, lint e build não substituem os testes visuais, funcionais, de acessibilidade ou em aparelhos reais.
 
 | Rota | Tela |
 | --- | --- |
 | `/` | Início com amostras e links para os dois módulos |
 | `/estudio` | Editor manual, cálculo de ritmo, três templates e personalização da prévia 9:16 |
-| `/analises` | Métricas e gráfico ilustrativos |
+| `/analises` | Importação local de FIT/TCX e resumo de métricas básicas |
 | `/historico` | Estado vazio |
 | `/perfil` | Preferências e zonas cardíacas |
 | `/entrar` | Tela demonstrativa de conta |
@@ -51,6 +51,24 @@ A composição é criada no próprio navegador a partir de uma única fonte visu
 Story e Feed incorporam a fotografia enquadrada, o contraste e as métricas. O PNG transparente mantém somente elementos e textos da figurinha, mesmo quando existe uma foto selecionada. O botão **Compartilhar** usa Web Share API com arquivo PNG somente após toque/clique explícito; quando o navegador não oferece esse recurso, o download permanece disponível. Isso não publica automaticamente no Instagram.
 
 Chrome/Chromium desktop foi exercitado com upload, enquadramento, download e decodificação dos arquivos; toque e Web Share foram verificados por emulação. As larguras de 360, 390, 768 e 1280 px foram testadas no Chromium, mas isso não equivale a um aparelho real. Safari/iOS, compartilhamento nativo real, outros navegadores móveis e a prévia da Vercel ainda precisam de validação manual. Em PNG transparente, o contraste final depende do fundo onde a figurinha será aplicada.
+
+### Importação FIT e TCX
+
+A página **Análises** aceita um arquivo `.fit` ou `.tcx` por vez, com limite de **20 MB** e processamento máximo de 30 segundos. O conteúdo real é validado além da extensão. O arquivo fica somente na memória da aba, é processado por um Web Worker e não é enviado, salvo ou incluído em telemetria. Coordenadas GPS podem ser preservadas no modelo normalizado, mas não são exibidas em mapas nem registradas no console.
+
+FIT é decodificado por `fit-file-parser` 6.2.10 em modo estrito, com estrutura completa e CRC válido. TCX é validado e lido por `fast-xml-parser` 5.12.1, sem processamento de entidades; arquivos com `DOCTYPE` ou `ENTITY` são recusados explicitamente. O modelo interno usa metros, segundos, bpm, timestamps ISO normalizados e números, nunca strings formatadas para cálculos.
+
+Regras desta etapa:
+
+- Distância: o resumo da sessão ou a soma das voltas tem precedência; amostras são alternativa. Divergências maiores que 1% ou 50 m geram aviso sem substituir silenciosamente o resumo.
+- Tempo: tempo decorrido, tempo de cronômetro e tempo em movimento permanecem distintos. Tempo em movimento só aparece quando o arquivo o fornece de forma explícita.
+- Pace: usa primeiro o tempo de cronômetro identificado e, na ausência dele, o tempo decorrido; a base é mostrada na interface.
+- Frequência cardíaca: usa resumo válido e, quando ele não existe, amostras válidas. Zero, valores não finitos e valores acima de 250 bpm são ignorados.
+- Elevação FIT: `session.total_ascent` e `session.total_descent`, já convertidos para metros pelo parser, têm precedência e zero é um valor válido. Na ausência de um deles, voltas só são agregadas quando distância, cronômetro ou limites temporais comprovam cobertura integral sem sobreposição; sessão e voltas nunca são somadas juntas.
+- Elevação TCX: amostras de altitude absoluta continuam preservadas, mas não são transformadas por soma ingênua em subida/descida. Sem um resumo explícito reconhecido, as duas métricas permanecem indisponíveis e a interface explica a limitação.
+- Timestamps: registros são ordenados e duplicatas consolidadas. Strings sem fuso horário são descartadas para não variar a duração conforme o dispositivo.
+
+A cobertura local usa duas fixtures FIT sintéticas com CRC válido — uma referência de 10 km e outra anônima de 21,10 km, 1:50:34, 36 m de subida e 34 m de descida — e fixtures TCX v2, inclusive com altitude sem resumo acumulado. Também cobre zero válido, sessões/voltas, múltiplas sessões, pausas, campos ausentes e arquivos corrompidos. Isso demonstra os campos exercitados, não compatibilidade ampla com marcas ou todos os exportadores. Os arquivos pessoais `Zepp20261115043908.fit` e `.tcx` não estavam disponíveis neste ambiente e não foram executados nem incorporados ao repositório. Arquivos reais de relógios diferentes, Safari/iOS e Android real ainda precisam de validação pela prévia do PR.
 
 ### Histórico, rascunho e restauração
 

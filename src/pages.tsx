@@ -1,6 +1,6 @@
 import { Activity, ArrowUpRight, ChartNoAxesCombined, History as HistoryIcon, Image, ShieldCheck, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { CourseArt, Metrics, Sticker } from './preview'
+import { Sticker } from './preview'
 import { templates } from './demo'
 
 export function Home() {
@@ -24,20 +24,10 @@ export function Home() {
   </>
 }
 
-export function Analyses() {
-  return <>
-    <div className="page-heading"><span className="eyebrow">Recurso em desenvolvimento</span><h1>Análises</h1><p>Exemplo de painel com dados fictícios.</p></div>
-    <div className="analysis-grid">
-      <section className="panel content-panel"><h2>Resumo da corrida</h2><Metrics /></section>
-      <section className="panel content-panel"><h2>Gráfico de ritmo</h2><div className="chart-placeholder"><CourseArt /></div><p className="muted">Traçado ilustrativo. O gráfico será preenchido a partir de uma atividade importada.</p></section>
-    </div>
-  </>
-}
-
 export function History() {
   return <>
     <div className="page-heading"><h1>Histórico</h1><p>Atividades salvas e evolução de corrida.</p></div>
-    <section className="panel content-panel empty"><HistoryIcon aria-hidden="true" /><h2>Nenhuma atividade salva</h2><p>Uma conta opcional permitirá guardar corridas e comparar sua evolução.</p><Link className="button" to="/analises">Ver demonstração de análise</Link></section>
+    <section className="panel content-panel empty"><HistoryIcon aria-hidden="true" /><h2>Nenhuma atividade salva</h2><p>Uma conta opcional permitirá guardar corridas e comparar sua evolução.</p><Link className="button" to="/analises">Importar atividade para análise</Link></section>
   </>
 }
 

@@ -50,10 +50,16 @@
 
 ## 4. Importação e análise de corridas
 
-- [ ] Importar FIT e TCX e normalizar unidades e timestamps.
+- [x] Importar FIT e TCX localmente e normalizar unidades e timestamps na Etapa 4A.
 - [ ] Calcular tempo decorrido e tempo em movimento quando verificáveis, ritmo, parciais, elevação, FC e zonas.
 - [ ] Implementar gráficos, testes independentes e integração com o Estúdio.
 - [ ] Documentar metodologia, privacidade e tratamento de GPS opcional.
+
+**Entregue em 4A** — seleção e validação de um arquivo FIT/TCX de até 20 MB, parsing local em Worker, modelo normalizado com proveniência, resumo de distância, tempos identificados, pace, FC e elevação somente quando confiável, avisos de ausência/inconsistência e fluxo para substituir ou limpar a atividade. FIT exige estrutura e CRC válidos; TCX recusa DTD e entidades. O processamento não usa API, conta, banco ou persistência.
+
+**Auditoria corretiva da 4A** — o modelo agora separa subida e descida, aceita zero válido e rastreia resumo de sessão FIT ou fallback seguro de voltas. Resumos de sessão têm precedência e nunca são somados às voltas; arquivos multissessão têm registros e voltas isolados. Altitude TCX permanece disponível como amostra, mas sem estimativa acumulada até existir metodologia validada. Tempo decorrido, cronômetro e movimento continuam independentes, e eventos de pausa não inventam tempo em movimento. A matriz T1–T32 passou com fixtures sintéticas e Chromium; os dois arquivos Zepp reais e aparelho móvel real não estavam disponíveis, portanto o aceite da prévia continua pendente.
+
+**Ainda pendente na Etapa 4** — validação ampla com arquivos reais de diferentes dispositivos, metodologia avançada de elevação e tempo em movimento, parciais calculadas, gráficos, zonas cardíacas, mapas com proteção de trechos sensíveis e integração opcional com o Estúdio. A Etapa 4 não está concluída.
 
 **Testes** — equivalência FIT/TCX, pausas presentes e ausentes, FC ausente, lacunas, duplicidade, soma de parciais e uso sem GPS.  
 **Aceite** — cálculos confiáveis e reproduzíveis, com lacunas explicitadas.  

@@ -160,3 +160,98 @@
 **Limitações remanescentes** — a comparação automatizada foi executada localmente e não adicionou Playwright/Pillow ao projeto ou ao CI. A rasterização de fontes pode variar entre navegadores que não tenham a mesma fonte disponível. Safari/iOS, Android real, prévia Vercel, toque real, galeria e compartilhamento nativo ainda não foram validados; a correção permanece em validação até esse teste manual.
 
 **Próxima ação** — revisar o PR e a prévia Vercel em celular real: fotografar ou escolher JPEG, ajustar com toque, alternar Story/Feed, baixar, compartilhar e conferir os PNGs na galeria. Só depois dessa evidência marcar a Etapa 3 como concluída.
+
+## Etapa 4A — Importação FIT/TCX e métricas básicas. Status: implementada localmente; em validação.
+
+**Linha de base em 19/11/2026** — a correção WYSIWYG estava incorporada à `main` pelo merge `8184261`. Antes desta etapa, `npm test` aprovou 43/43 testes, lint e build; a página Análises ainda mostrava somente dados fictícios.
+
+**Arquitetura** — `activity-types.ts` define a atividade normalizada e a origem/estado de cada métrica; `activity-normalization.ts` valida unidades, timestamps e cálculos; `activity-fit.ts` e `activity-tcx.ts` isolam os formatos; `activity-import-policy.ts` aplica extensão, vazio e limite de 20 MB; `activity-parse.ts` valida o conteúdo real; `activity-import.worker.ts` executa parsing fora da thread da interface com timeout de 30 segundos; `analyses.tsx` contém somente o fluxo e a apresentação. O bundle inicial não carrega os parsers: eles ficam em Worker/chunk separado.
+
+**Bibliotecas** — `fit-file-parser` 6.2.10 (MIT, TypeScript, atualizado em 17/11/2026) foi escolhido em vez de um parser binário próprio. Ele opera com `force: false` e `strict: true`, exigindo CRC, estrutura e registros completos. `fast-xml-parser` 5.12.1 (MIT) valida TCX; processamento de entidades fica desativado e `DOCTYPE`/`ENTITY` são recusados antes do parse.
+
+**Modelo e metodologia** — metros, segundos e bpm permanecem numéricos. Cada métrica registra valor, disponibilidade/inconsistência e origem. Resumo de sessão FIT ou soma de voltas TCX precede amostras; divergência acima de 1% ou 50 m gera aviso. Tempo de cronômetro, decorrido e movimento nunca são tratados como sinônimos. O pace usa cronômetro quando disponível e decorrido como alternativa identificada. Tempo em movimento não é inferido. FC usa resumo válido ou amostras entre 1 e 250 bpm. Elevação só usa resumo fornecido pelo arquivo; altitudes não são somadas. Timestamps exigem UTC/offset, são ordenados e duplicatas são consolidadas.
+
+| Teste 4A | Estado | Evidência em 19/11/2026 |
+| --- | --- | --- |
+| T1 · FIT válido | aprovado | Fixture FIT de 182 bytes com estrutura e CRC válidos: 10.000 m, 3.280 s, FC 155/170, elevação resumida 84 m e três pontos GPS. |
+| T2 · TCX válido | aprovado | TCX v2 com duas voltas e três trackpoints normalizado para 10.000 m e 3.280 s. |
+| T3 · Incompatível | aprovado | XML declarado como FIT foi recusado pela ausência da assinatura `.FIT`. |
+| T4 · Corrompido | aprovado | Alteração no CRC do FIT produziu erro compreensível sem derrubar o processo. |
+| T5 · Vazio | aprovado | Metadado com zero byte recusado antes do parsing. |
+| T6 · Tamanho | aprovado | Limite documentado de 20 MB; tamanho superior recusado antes da leitura. |
+| T7 · Sem GPS | aprovado | TCX sem `Position` importado; nenhuma coordenada inventada. |
+| T8 · Sem FC | aprovado | FC média/máxima permanecem ausentes e a interface informa indisponibilidade. |
+| T9 · 10 km / 54:40 | aprovado | Referência independente: 328 s/km = 5:28/km. |
+| T10 · 5 km / 25:00 | aprovado | Referência independente: 300 s/km = 5:00/km. |
+| T11 · Distância zero | aprovado | Cálculo retorna ausência, nunca divisão por zero, `Infinity` ou `NaN`. |
+| T12 · Ordem temporal | aprovado | Registros fora de ordem são ordenados; duplicatas são consolidadas e duração permanece não negativa. |
+| T13 · Pausas ausentes | aprovado | Tempo em movimento permanece indisponível sem resumo explícito. |
+| T14 · Ausências/inválidos | aprovado | Distância negativa, tempo infinito e FC zero/fora do limite não viram medições. |
+| T15 · Fuso | aprovado | UTC e `-03:00` representando os mesmos intervalos produzem a mesma duração. |
+| T16 · Equivalência | aprovado | Fixtures FIT e TCX equivalentes produziram exatamente distância, cronômetro, pace e FC iguais. |
+| T17 · Processamento | aprovado no Chromium | MutationObserver confirmou a exibição do estado “Lendo e validando” durante o Worker. |
+| T18 · Resultado real | aprovado no Chromium | Upload FIT exibiu 10,00 km, 54:40, 5:28 min/km, 155/170 bpm e origem FIT. |
+| T19 · Erro | aprovado no Chromium | FIT incompatível exibiu mensagem sobre assinatura e a seleção continuou utilizável. |
+| T20 · Troca | aprovado no Chromium | Trocar FIT por TCX removeu nome/origem anteriores e exibiu somente a nova atividade. |
+| T21 · Limpar | aprovado no Chromium | Limpeza removeu resultados e restaurou o seletor inicial. |
+| T22 · Responsividade | aprovado em viewport | 360, 390, 768 e 1280 px com `scrollWidth === clientWidth`; captura completa conferida em 390 e 1280 px. Não equivale a aparelho real. |
+| T23 · Rotas | aprovado | Início, Estúdio, Análises, Histórico, Perfil, Entrar e 404 responderam HTTP 200 com títulos esperados. |
+| T24 · Recarga direta | aprovado localmente | `/analises` abriu diretamente e continuou funcional após `reload`. |
+| T25 · Estúdio | aprovado | Regressões automatizadas anteriores passaram e 5 km / 25:00 continuou exibindo 5:00 no Estúdio. |
+
+**Privacidade verificada** — a automação não observou requisições externas durante seleção, Worker e resultados. Nenhuma coordenada é exibida, persistida ou registrada. Atividade e Worker são descartados ao terminar, limpar ou substituir; não há `localStorage`, banco, API, autenticação ou mapa.
+
+**Resultados de qualidade** — 60/60 testes automatizados, lint e build concluídos com sucesso; `npm audit --omit=dev` encontrou zero vulnerabilidades conhecidas. O build preserva apenas os avisos conhecidos das diretivas `use client` do React Router. O bundle inicial ficou em aproximadamente 103,5 kB gzip; parser/Worker ficam separados e carregam somente na importação.
+
+**Limitações conhecidas** — as fixtures cobrem FIT com campos padrão/CRC válido e TCX v2 de corrida; não vieram de uma matriz de relógios ou aplicativos reais, portanto não há alegação de compatibilidade ampla com marcas. Arquivos concatenados, cursos TCX, multiesporte e múltiplas atividades não são combinados; quando há múltiplas sessões/atividades, uma é escolhida com aviso. Não há mapa, gráfico, zonas, parciais calculadas, elevação avançada, integração com Estúdio, persistência ou importação múltipla. Safari/iOS, Android real e prévia Vercel seguem pendentes.
+
+**Próxima subetapa recomendada** — validar a 4A com arquivos reais e aparelhos móveis pela prévia do PR; depois iniciar 4B com metodologia testada para parciais, pausas/tempo em movimento e qualidade de elevação, sem antecipar mapas públicos.
+
+## Auditoria corretiva da Etapa 4A — elevação e tempos. Status: implementada no PR; aguardando validação real.
+
+**Diagnóstico em 19/11/2026** — o caminho positivo de `session.total_ascent` já chegava ao modelo em metros e a fixture anterior exibia 84 m; portanto não foi reproduzida uma falha universal de subida FIT. A auditoria encontrou lacunas semânticas reais: o modelo não representava descida, descartava zero por exigir valor positivo, não possuía fallback seguro de voltas e usava um rótulo genérico de elevação. O parser já normaliza `total_ascent`, `total_descent` e altitudes para metros com `lengthUnit: 'm'`; reconverter esses valores seria um erro. Os arquivos Zepp citados pelo usuário não estavam no workspace, então a causa específica daquele arquivo não pôde ser confirmada e não é declarada como testada.
+
+**Correção e precedência** — `normalizeFit` lê subida e descida do resumo da sessão, incluindo zero. Se um campo estiver ausente, `lapElevation` só soma o mesmo campo nas voltas depois de `lapsSafelyCoverSession` comprovar ausência de sobreposição e cobertura integral por número de voltas e por distância, cronômetro ou limites temporais. Sessão e voltas não são somadas. Em múltiplas sessões, a atividade de maior distância/duração é selecionada e seus registros, eventos e voltas são isolados. O modelo normalizado e a interface agora mantêm `ascentMeters` e `descentMeters` com origem `fit-session` ou `fit-laps`.
+
+**TCX e tempos** — altitude TCX continua nas amostras, mas, sem resumo explícito reconhecido, subida e descida ficam indisponíveis com explicação; não há soma de diferenças positivas sujeita a ruído. Tempo decorrido, tempo de cronômetro e tempo em movimento possuem métricas distintas. O pace mantém a precedência documentada de cronômetro e depois decorrido. `total_moving_time` só é aceito quando explicitamente fornecido; eventos de início/parada são preservados como evidência, mas não copiam o cronômetro para movimento.
+
+| Auditoria T1–T32 | Estado | Evidência em 19/11/2026 |
+| --- | --- | --- |
+| T1 · Subida 36 m | aprovado | FIT sintético binário com estrutura e CRC válidos percorreu parser, normalização e interface; origem `fit-session`. |
+| T2 · Descida 34 m | aprovado | O mesmo FIT produziu 34 m com origem `fit-session`, sem inverter os campos. |
+| T3 · Zero válido | aprovado | Resumo FIT com 0 m permaneceu disponível, distinto de ausência. |
+| T4 · Elevação ausente | aprovado | FIT sem resumo nem fallback confiável manteve as duas métricas ausentes. |
+| T5 · Sessão e voltas | aprovado | 36/34 da sessão prevaleceram; voltas não foram duplicadas. |
+| T6 · Múltiplas sessões | aprovado | Sessão de corrida de 21,10 km selecionada sem misturar elevação da caminhada. |
+| T7 · Unidades e escalas | aprovado | Parser configurado em metros retornou altitude 510 m e resumos 36/34 sem reconversão. |
+| T8 · Registros incompletos | aprovado | Registros inválidos foram ignorados sem perder resumo nem lançar erro. |
+| T9 · TCX com altitude | aprovado | Altitudes foram preservadas; subida/descida não foram calculadas por soma ingênua. |
+| T10 · TCX sem altitude | aprovado | Importação concluída e nenhuma elevação foi fabricada. |
+| T11 · TCX sem opcionais | aprovado | FC e movimento permaneceram ausentes. |
+| T12 · Extensão reconhecida | aprovado | Velocidade `3.5 m/s` em extensão foi lida na unidade correta e não confundida com elevação. |
+| T13 · Decorrido = cronômetro | aprovado | Ambos preservados em 6.634 s (1:50:34). |
+| T14 · Decorrido > cronômetro | aprovado | 3.900 s e 3.600 s permaneceram distintos; pace usou cronômetro identificado. |
+| T15 · Pausa e retomada | aprovado | Eventos preservados, sem inferir movimento. |
+| T16 · Sem eventos de pausa | aprovado | A atividade foi preservada sem deduzir movimento pela ausência de eventos. |
+| T17 · Sem movimento explícito | aprovado | Movimento permaneceu indisponível e não copiou o cronômetro. |
+| T18 · Movimento explícito | aprovado | `total_moving_time = 3.500` foi aceito com origem FIT. |
+| T19 · Timestamps problemáticos | aprovado | Inválidos foram ignorados, duplicados consolidados e fora de ordem ordenados. |
+| T20 · Duração não negativa | aprovado | Os mesmos casos nunca produziram duração negativa. |
+| T21 · Pace 10 km | aprovado | 54:40 resultou em 328 s/km = 5:28/km. |
+| T22 · Pace 21,10 km | aprovado | 1:50:34 resultou em 314,41 s/km, exibido como 5:14/km. |
+| T23 · Distância inválida | aprovado | Nenhum `NaN` ou `Infinity`; pace ausente. |
+| T24 · FC ausente | aprovado | Nenhum valor fictício criado. |
+| T25 · Subida/descida | aprovado | 36 m e 34 m permaneceram nos campos corretos. |
+| T26 · Interface e unidades | aprovado no Chromium | Upload do FIT sintético exibiu “Subida acumulada 36 m” e “Descida acumulada 34 m”. |
+| T27 · Ausências explicadas | aprovado no Chromium | TCX com altitude mostrou “Não disponível” nos dois cards e explicou a falta de resumo confiável; movimento também foi explicado. |
+| T28 · Responsividade | aprovado em viewport | 360, 390, 768 e 1280 px tiveram `scrollWidth === clientWidth`; capturas desktop e móvel foram inspecionadas. Não equivale a aparelho real. |
+| T29 · Substituição | aprovado no Chromium | Importar TCX após FIT removeu nome, formato e métricas anteriores. |
+| T30 · `/analises` direta | aprovado no Chromium | Abertura direta e `reload` mantiveram a rota funcional. |
+| T31 · Regressão do Estúdio | aprovado no Chromium | 5 km / 25:00 continuou exibindo 5:00. |
+| T32 · Regressões FIT/TCX | aprovado | 83/83 testes automatizados passaram, incluindo a matriz anterior de importação. |
+
+**Compatibilidade efetivamente exercitada** — FIT sintético de 182 bytes e FIT sintético/anônimo de 157 bytes, ambos com CRC válido; objetos FIT controlados para voltas, sessões, eventos, zero e movimento; TCX v2 sintético com e sem GPS, FC, altitude e extensão de velocidade. O Chromium processou os arquivos pelo Worker e não realizou requisições externas. Nenhuma fixture contém localização pessoal. `Zepp20261115043908.fit`, `Zepp20261115043908.tcx`, Safari/iOS, Android real e a prévia Vercel não foram executados neste ambiente.
+
+**Qualidade** — `npm test` aprovou 83/83 testes; `npm run lint` e `npm run build` concluíram com sucesso. O teste funcional do Chromium aprovou importação de 21,10 km, 1:50:34, pace 5:14, FC 168/183, subida 36 m, descida 34 m, movimento indisponível com explicação, TCX sem elevação inventada, substituição, rotas e responsividade.
+
+**Próxima ação** — abrir a nova prévia do PR da 4A no celular, importar os arquivos Zepp sem os publicar, comparar distância, tempos, pace, FC e 36/34 m, conferir que movimento permanece indisponível se o FIT não trouxer uma métrica independente e repetir com TCX. Só após essa evidência deve-se aprovar a correção; a Etapa 4B não foi iniciada.
