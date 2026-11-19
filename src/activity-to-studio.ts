@@ -95,6 +95,7 @@ export function adaptActivityToStudio(activity: NormalizedActivity, base: Editor
         elevation: ascentMeters !== null,
       },
     },
+    routeAppearance: { ...base.routeAppearance },
     provenance: { kind: 'imported', edited: false, reference },
   }
 }

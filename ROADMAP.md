@@ -52,20 +52,20 @@
 
 - [x] Importar FIT e TCX localmente e normalizar unidades e timestamps na Etapa 4A.
 - [x] Integrar atividades normalizadas ao Estúdio na Etapa 4C antecipada.
-- [ ] Implementar trajetos GPS reais e privados no Estúdio na Etapa 4D.
+- [x] Implementar trajetos GPS reais e privados no Estúdio na Etapa 4D.
 - [ ] Calcular tempo decorrido e tempo em movimento quando verificáveis, ritmo, parciais, elevação, FC e zonas na Etapa 4B.
 - [ ] Implementar gráficos e testes independentes da análise avançada 4B.
-- [ ] Documentar metodologia, privacidade e tratamento de GPS opcional.
+- [x] Documentar metodologia, privacidade e tratamento de GPS opcional.
 
 **Entregue em 4A** — seleção e validação de um arquivo FIT/TCX de até 20 MB, parsing local em Worker, modelo normalizado com proveniência, resumo de distância, tempos identificados, pace, FC e elevação somente quando confiável, avisos de ausência/inconsistência e fluxo para substituir ou limpar a atividade. FIT exige estrutura e CRC válidos; TCX recusa DTD e entidades. O processamento não usa API, conta, banco ou persistência.
 
 **Auditoria corretiva da 4A** — o modelo agora separa subida e descida, aceita zero válido e rastreia resumo de sessão FIT ou fallback seguro de voltas. Resumos de sessão têm precedência e nunca são somados às voltas; arquivos multissessão têm registros e voltas isolados. Altitude TCX permanece disponível como amostra, mas sem estimativa acumulada até existir metodologia validada. Tempo decorrido, cronômetro e movimento continuam independentes, e eventos de pausa não inventam tempo em movimento. A matriz T1–T32 passou com fixtures sintéticas e Chromium; os dois arquivos Zepp reais e aparelho móvel real não estavam disponíveis, portanto o aceite da prévia continua pendente.
 
-**Etapa 4C antecipada — integração com o Estúdio** — implementada em branch própria antes da análise avançada 4B. A atividade normalizada alimenta o editor existente por um adaptador tipado, sem novo parsing, GPS, URL ou persistência automática. Dados importados ficam identificados e protegidos, opcionais ausentes são limpos, edições manuais exigem ação explícita e rascunhos existentes pedem confirmação. Templates, fotografia, histórico e os três formatos de PNG continuam no mesmo fluxo. A validação automatizada e no Chromium foi concluída; prévia Vercel e aparelho real permanecem como aceite manual.
+**Etapa 4C antecipada — integração com o Estúdio** — implementada em branch própria antes da análise avançada 4B. A atividade normalizada alimenta o editor existente por um adaptador tipado, sem novo parsing, URL ou persistência automática. Dados importados ficam identificados e protegidos, opcionais ausentes são limpos, edições manuais exigem ação explícita e rascunhos existentes pedem confirmação. Templates, fotografia, histórico e os três formatos de PNG continuam no mesmo fluxo.
 
-**Etapa 4D planejada — trajeto GPS real no Estúdio** — próxima etapa após a 4C. Deverá transformar coordenadas FIT/TCX em um percurso visual real no lugar da ilustração atual, com controles de cor, espessura, tamanho e posição, além de proteção de locais sensíveis e escolhas explícitas de privacidade. Este item é somente planejamento: nenhuma coordenada é transferida ao Estúdio nesta entrega. A ordem prevista é 4A → 4C → 4D → 4B.
+**Etapa 4D — trajeto GPS real no Estúdio** — implementada após a 4C. Coordenadas FIT/TCX válidas viram segmentos SVG proporcionais no lugar da ilustração, com cor, espessura, tamanho, posição, visibilidade, marcadores e recorte de 100/200/500 m nas extremidades. A geometria é efêmera, fica fora de URLs e rascunhos, e usa a mesma composição da prévia e dos PNGs. Atividades sem GPS continuam funcionais e nunca recebem rota fictícia. A validação automatizada e no Chromium sintético foi concluída; prévia Vercel e aparelhos reais permanecem como aceite manual. A ordem é 4A → 4C → 4D → 4B.
 
-**Ainda pendente na Etapa 4** — validação ampla com arquivos reais de diferentes dispositivos, a Etapa 4D de trajetos privados e a Etapa 4B de metodologia avançada de elevação/tempo em movimento, parciais, gráficos e zonas cardíacas. Nem 4D nem 4B foram iniciadas e a Etapa 4 não está concluída.
+**Ainda pendente na Etapa 4** — validação ampla com arquivos reais de diferentes dispositivos e a Etapa 4B de metodologia avançada de elevação/tempo em movimento, parciais, gráficos e zonas cardíacas. A 4B não foi iniciada e a Etapa 4 não está concluída.
 
 **Testes** — equivalência FIT/TCX, pausas presentes e ausentes, FC ausente, lacunas, duplicidade, soma de parciais e uso sem GPS.  
 **Aceite** — cálculos confiáveis e reproduzíveis, com lacunas explicitadas.  

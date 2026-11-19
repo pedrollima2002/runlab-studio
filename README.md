@@ -2,7 +2,7 @@
 
 Estúdio de figurinhas para corrida e painel demonstrativo de análise. O acesso de visitante é livre e o Estúdio exporta imagens localmente, sem conta ou envio dos dados a servidores.
 
-React, TypeScript, Vite, Tailwind CSS, React Router e Lucide. A leitura FIT usa `fit-file-parser` e a leitura XML usa `fast-xml-parser`. A ilustração do percurso é um SVG local. O projeto roda sem backend, credenciais ou serviços de imagem e fontes.
+React, TypeScript, Vite, Tailwind CSS, React Router e Lucide. A leitura FIT usa `fit-file-parser` e a leitura XML usa `fast-xml-parser`. Percursos GPS válidos são projetados e desenhados em SVG local; criações manuais mantêm uma linha explicitamente ilustrativa. O projeto roda sem backend, credenciais ou serviços de imagem, mapa e fontes.
 
 ## Executar
 
@@ -54,7 +54,7 @@ Chrome/Chromium desktop foi exercitado com upload, enquadramento, download e dec
 
 ### Importação FIT e TCX
 
-A página **Análises** aceita um arquivo `.fit` ou `.tcx` por vez, com limite de **20 MB** e processamento máximo de 30 segundos. O conteúdo real é validado além da extensão. O arquivo fica somente na memória da aba, é processado por um Web Worker e não é enviado, salvo ou incluído em telemetria. Coordenadas GPS podem ser preservadas no modelo normalizado, mas não são exibidas em mapas nem registradas no console.
+A página **Análises** aceita um arquivo `.fit` ou `.tcx` por vez, com limite de **20 MB** e processamento máximo de 30 segundos. O conteúdo real é validado além da extensão. O arquivo fica somente na memória da aba, é processado por um Web Worker e não é enviado, salvo ou incluído em telemetria. Coordenadas GPS válidas permanecem no modelo normalizado somente em memória, sem mapa externo ou registro no console.
 
 FIT é decodificado por `fit-file-parser` 6.2.10 em modo estrito, com estrutura completa e CRC válido. TCX é validado e lido por `fast-xml-parser` 5.12.1, sem processamento de entidades; arquivos com `DOCTYPE` ou `ENTITY` são recusados explicitamente. O modelo interno usa metros, segundos, bpm, timestamps ISO normalizados e números, nunca strings formatadas para cálculos.
 
@@ -72,11 +72,21 @@ A cobertura local usa duas fixtures FIT sintéticas com CRC válido — uma refe
 
 ### Da análise para o Estúdio
 
-Depois de importar uma atividade com distância, duração e pace válidos, **Criar figurinha desta corrida** abre o mesmo Estúdio usado no fluxo manual. Um adaptador tipado transfere somente os dados necessários: distância, duração e sua base, pace original, FC disponível, subida, data e formato FIT/TCX. FC máxima e descida ficam preservadas como referência técnica enquanto não houver campos próprios nos templates. Amostras, voltas, nome do arquivo e coordenadas GPS não atravessam essa fronteira.
+Depois de importar uma atividade com distância, duração e pace válidos, **Criar figurinha desta corrida** abre o mesmo Estúdio usado no fluxo manual. Um adaptador tipado transfere as métricas necessárias; em paralelo, um contexto efêmero leva somente os segmentos GPS validados, sem reler ou exigir outro upload. FC máxima e descida ficam preservadas como referência técnica enquanto não houver campos próprios nos templates. Nome do arquivo, binário, voltas e coordenadas nunca entram na URL ou no rascunho.
 
 O estado temporário vive apenas na memória do aplicativo e sobrevive à navegação normal da aba. Ele não é colocado na URL nem salvo automaticamente. Se a página for recarregada, o Estúdio orienta a reimportação em vez de mostrar dados demonstrativos; persistência só ocorre quando o usuário ativa o rascunho local. Rascunhos antigos são migrados como edições manuais, e um rascunho existente nunca é apagado ou substituído sem confirmação.
 
 Métricas importadas começam protegidas e identificadas pela origem FIT/TCX. Título, template, cores, organização, visibilidade, fotografia e exportação continuam disponíveis. Para alterar distância, tempo, FC, subida ou data, o usuário precisa habilitar explicitamente a edição manual; os valores originais permanecem guardados e podem ser restaurados. Ausências continuam vazias, nunca viram zero, e tempo em movimento não é transferido sem uma métrica independente.
+
+### Trajeto GPS no Estúdio
+
+FIT usa os graus já entregues por `fit-file-parser`; uma conversão defensiva de semicircles (`valor × 180 / 2³¹`) só ocorre quando o número ainda está fora do intervalo geográfico. TCX preserva cada `Track` de cada volta como segmento independente. Latitude/longitude finitas, inclusive zero, são aceitas dentro de ±90/±180; posições ausentes ou inválidas, duplicatas e saltos implausíveis não viram conexões enganosas.
+
+O desenho usa projeção local com correção longitudinal pela latitude média, desembrulha o antimeridiano, aplica uma escala única, centraliza com margens e simplifica apenas a cópia visual. Pontos originais e métricas esportivas permanecem intactos. Cor, espessura, tamanho, posição, visibilidade e marcadores de início/fim usam o mesmo histórico de desfazer/refazer do editor. O mesmo SVG canônico alimenta prévia e Canvas/PNG nos formatos transparente, Story e Feed.
+
+O usuário pode ocultar 100, 200 ou 500 metros no início e no fim. Esse recorte muda somente a geometria exibida e avisa quando o trajeto é curto demais; ele reduz exposição, mas não garante anonimato. A primeira exportação identificável da sessão pede confirmação. A rota completa fica somente em memória, não é salva automaticamente, enviada a APIs, incluída em URLs ou persistida em rascunhos. Uma nova importação sempre substitui — inclusive por `null` — a rota anterior. Atividades importadas sem GPS mostram “Percurso GPS não disponível nesta atividade.” e continuam exportáveis; no fluxo manual, o percurso decorativo é identificado como ilustrativo.
+
+Limitações: não há mapa de ruas/satélite, GPX, rotação/opacidade/pontilhado, animação ou anonimização garantida. Arquivos reais de diferentes relógios, Safari/iOS, Android físico e a prévia hospedada ainda exigem validação manual.
 
 ### Histórico, rascunho e restauração
 

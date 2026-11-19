@@ -53,9 +53,15 @@ function finiteNonNegative(value: unknown): value is number {
 }
 
 function fitPosition(record: FitRecord): ActivityPosition | null {
-  return finite(record.position_lat) && finite(record.position_long)
-    ? { latitude: record.position_lat, longitude: record.position_long }
-    : null
+  if (!finite(record.position_lat) || !finite(record.position_long)) return null
+  // fit-file-parser converte semicircles para graus. A guarda também cobre
+  // registros pré-normalizados fornecidos por integrações ou testes.
+  const semicircleToDegrees = (value: number) => value * (180 / 2 ** 31)
+  const outsideDegreeRange = Math.abs(record.position_lat) > 90 || Math.abs(record.position_long) > 180
+  const looksLikeRawSemicircles = outsideDegreeRange && Math.max(Math.abs(record.position_lat), Math.abs(record.position_long)) > 10_000
+  const latitude = looksLikeRawSemicircles ? semicircleToDegrees(record.position_lat) : record.position_lat
+  const longitude = looksLikeRawSemicircles ? semicircleToDegrees(record.position_long) : record.position_long
+  return { latitude, longitude }
 }
 
 function selectSession(sessions: FitSession[]): FitSession | undefined {
