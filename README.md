@@ -70,6 +70,14 @@ Regras desta etapa:
 
 A cobertura local usa duas fixtures FIT sintéticas com CRC válido — uma referência de 10 km e outra anônima de 21,10 km, 1:50:34, 36 m de subida e 34 m de descida — e fixtures TCX v2, inclusive com altitude sem resumo acumulado. Também cobre zero válido, sessões/voltas, múltiplas sessões, pausas, campos ausentes e arquivos corrompidos. Isso demonstra os campos exercitados, não compatibilidade ampla com marcas ou todos os exportadores. Os arquivos pessoais `Zepp20261115043908.fit` e `.tcx` não estavam disponíveis neste ambiente e não foram executados nem incorporados ao repositório. Arquivos reais de relógios diferentes, Safari/iOS e Android real ainda precisam de validação pela prévia do PR.
 
+### Da análise para o Estúdio
+
+Depois de importar uma atividade com distância, duração e pace válidos, **Criar figurinha desta corrida** abre o mesmo Estúdio usado no fluxo manual. Um adaptador tipado transfere somente os dados necessários: distância, duração e sua base, pace original, FC disponível, subida, data e formato FIT/TCX. FC máxima e descida ficam preservadas como referência técnica enquanto não houver campos próprios nos templates. Amostras, voltas, nome do arquivo e coordenadas GPS não atravessam essa fronteira.
+
+O estado temporário vive apenas na memória do aplicativo e sobrevive à navegação normal da aba. Ele não é colocado na URL nem salvo automaticamente. Se a página for recarregada, o Estúdio orienta a reimportação em vez de mostrar dados demonstrativos; persistência só ocorre quando o usuário ativa o rascunho local. Rascunhos antigos são migrados como edições manuais, e um rascunho existente nunca é apagado ou substituído sem confirmação.
+
+Métricas importadas começam protegidas e identificadas pela origem FIT/TCX. Título, template, cores, organização, visibilidade, fotografia e exportação continuam disponíveis. Para alterar distância, tempo, FC, subida ou data, o usuário precisa habilitar explicitamente a edição manual; os valores originais permanecem guardados e podem ser restaurados. Ausências continuam vazias, nunca viram zero, e tempo em movimento não é transferido sem uma métrica independente.
+
 ### Histórico, rascunho e restauração
 
 Os botões **Desfazer** e **Refazer** cobrem dados e aparência. Fora dos campos, use `Ctrl + Z`/`Cmd + Z` e `Ctrl + Shift + Z`/`Cmd + Shift + Z`; dentro dos inputs, o comportamento nativo de edição é preservado.

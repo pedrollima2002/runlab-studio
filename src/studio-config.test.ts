@@ -149,6 +149,14 @@ describe('rascunhos e restauração', () => {
     assert.equal(Object.hasOwn(JSON.parse(serialized).editor, 'pace'), false)
   })
 
+  test('migra rascunho da versão 1 como edição manual', () => {
+    const state = createDefaultEditorState()
+    const legacy = JSON.stringify({ version: 1, editor: { activity: state.activity, appearance: state.appearance } })
+    const recovered = parseDraft(legacy)
+    assert.equal(recovered.ok, true)
+    if (recovered.ok) assert.deepEqual(recovered.state.provenance, { kind: 'manual' })
+  })
+
   test('recusa JSON corrompido, versão incompatível e estrutura inválida', () => {
     assert.equal(parseDraft('{').ok, false)
     assert.equal(parseDraft(JSON.stringify({ version: DRAFT_VERSION + 1, editor: {} })).ok, false)

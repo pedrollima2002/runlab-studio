@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { Calculator, CheckCircle2, ChevronDown, Crosshair, Download, ImageOff, ImagePlus, LoaderCircle, Redo2, RotateCcw, ScanLine, Share2, Trash2, Undo2 } from 'lucide-react'
+import { Calculator, CheckCircle2, ChevronDown, Crosshair, Download, ImageOff, ImagePlus, LoaderCircle, Redo2, RotateCcw, ScanLine, Share2, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
+import { enableManualMetricEditing, restoreImportedMetrics } from './activity-to-studio'
 import { templates } from './demo'
 import { downloadExport, exportFormatDetails, exportFormats, renderExport, type ExportFormat } from './export-engine'
 import { Sticker, type StickerPhoto } from './preview'
@@ -19,6 +20,7 @@ import {
   accentColors,
   compatibleTextColors,
   createDefaultEditorState,
+  createEmptyEditorState,
   createEditorHistory,
   DRAFT_STORAGE_KEY,
   editorHistoryReducer,
@@ -36,6 +38,7 @@ import {
   type StickerLayout,
   type TextColor,
 } from './studio-config'
+import { clearImportedSessionMark, importedSessionWasLost, useStudioSession } from './studio-session'
 
 const metricLabels: Record<MetricKey, string> = {
   distance: 'Distância',
@@ -77,12 +80,17 @@ function Group({ title, children, open = false }: { title: string; children: Rea
 }
 
 export function Studio() {
+  const { editorState: sessionEditorState, setEditorState: setSessionEditorState } = useStudioSession()
+  const [lostImportedSession] = useState(() => sessionEditorState === null && importedSessionWasLost())
+  const [initialEditorState] = useState(() => sessionEditorState ?? (lostImportedSession ? createEmptyEditorState() : createDefaultEditorState()))
   const [draftStartup] = useState(loadDraftStartup)
-  const [history, dispatchHistory] = useReducer(editorHistoryReducer, undefined, createEditorHistory)
+  const [history, dispatchHistory] = useReducer(editorHistoryReducer, initialEditorState, createEditorHistory)
   const [saveEnabled, setSaveEnabled] = useState(false)
   const [pendingDraft, setPendingDraft] = useState<EditorState | null>(draftStartup.pending)
   const [hasStoredDraft, setHasStoredDraft] = useState(draftStartup.hasStored)
-  const [statusMessage, setStatusMessage] = useState(draftStartup.message)
+  const [statusMessage, setStatusMessage] = useState(lostImportedSession
+    ? 'A atividade importada era temporária e não pôde ser recuperada após a atualização. Importe o arquivo novamente em Análises ou recupere um rascunho salvo com sua autorização.'
+    : draftStartup.message)
   const [visibilityMessage, setVisibilityMessage] = useState('')
   const [exportFormat, setExportFormat] = useState<ExportFormat>('story')
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ state: 'idle', message: '' })
@@ -94,6 +102,12 @@ export function Studio() {
   const dragFrame = useRef<number | null>(null)
   const pendingFocus = useRef<{ focalX: number; focalY: number } | null>(null)
   const { activity, appearance } = history.present
+  const importedProvenance = history.present.provenance.kind === 'imported' ? history.present.provenance : null
+  const importedMetricsLocked = Boolean(importedProvenance && !importedProvenance.edited)
+
+  useEffect(() => {
+    setSessionEditorState(history.present)
+  }, [history.present, setSessionEditorState])
 
   useEffect(() => {
     if (!saveEnabled) return
@@ -136,7 +150,8 @@ export function Studio() {
   const parsedDistance = parseDistanceKm(activity.distance)
   const parsedDuration = parseDurationSeconds(activity.duration)
   const calculation = calculateAveragePace(activity.distance, activity.duration)
-  const pace = calculation.ok ? formatPace(calculation.paceSeconds) : '—'
+  const paceSeconds = importedMetricsLocked ? importedProvenance!.reference.paceSecondsPerKilometer : calculation.ok ? calculation.paceSeconds : null
+  const pace = paceSeconds === null ? '—' : formatPace(Math.round(paceSeconds))
   const heartRate = activity.heartRate.trim()
   const elevation = activity.elevation.trim()
   const heartRateValid = heartRate === '' || (/^\d+$/.test(heartRate) && Number(heartRate) > 0 && Number(heartRate) <= 250)
@@ -146,12 +161,17 @@ export function Studio() {
   if (heartRate && heartRateValid) availableMetrics.push('heartRate')
   if (elevation && elevationValid) availableMetrics.push('elevation')
 
+  const durationStickerLabel = importedProvenance?.reference.durationBasis === 'timer'
+    ? 'Tempo de cronômetro'
+    : importedProvenance?.reference.durationBasis === 'elapsed'
+      ? 'Tempo decorrido'
+      : 'Tempo'
   const allMetrics: StickerMetric[] = [
     { key: 'distance', label: 'Distância', value: parsedDistance === null ? '—' : formatDistance(parsedDistance), unit: 'km' },
-    { key: 'duration', label: 'Tempo', value: parsedDuration === null ? '—' : activity.duration.trim(), unit: '' },
+    { key: 'duration', label: durationStickerLabel, value: parsedDuration === null ? '—' : activity.duration.trim(), unit: '' },
     { key: 'pace', label: 'Ritmo médio', value: pace, unit: 'min/km' },
     ...(heartRate && heartRateValid ? [{ key: 'heartRate' as const, label: 'FC média', value: heartRate, unit: 'bpm' }] : []),
-    ...(elevation && elevationValid ? [{ key: 'elevation' as const, label: 'Elevação', value: elevation.replace('.', ','), unit: 'm' }] : []),
+    ...(elevation && elevationValid ? [{ key: 'elevation' as const, label: importedProvenance ? 'Subida acumulada' : 'Elevação', value: elevation.replace('.', ','), unit: 'm' }] : []),
   ]
 
   const stickerData: StickerData = {
@@ -218,7 +238,13 @@ export function Studio() {
     if (!pendingDraft) return
     dispatchHistory({ type: 'update', next: pendingDraft })
     setPendingDraft(null)
+    if (pendingDraft.provenance.kind === 'manual') clearImportedSessionMark()
     setStatusMessage('Rascunho recuperado. O pace foi recalculado a partir da distância e do tempo.')
+  }
+
+  function keepCurrentEdition() {
+    setPendingDraft(null)
+    setStatusMessage(importedProvenance ? 'Corrida importada mantida. O rascunho salvo não foi alterado.' : 'Edição atual mantida. O rascunho salvo não foi alterado.')
   }
 
   function startNewEdition() {
@@ -228,7 +254,19 @@ export function Studio() {
     setPhotoAdjustments(defaultPhotoAdjustments)
     setPhotoStatus({ state: 'idle', message: '' })
     setPendingDraft(null)
+    clearImportedSessionMark()
     setStatusMessage('Nova figurinha iniciada. O rascunho salvo não foi excluído.')
+  }
+
+  function unlockImportedMetrics() {
+    if (!importedProvenance || !window.confirm('Editar manualmente as métricas importadas? Os valores originais continuarão preservados e a edição será identificada como manual.')) return
+    dispatchHistory({ type: 'update', next: enableManualMetricEditing(history.present) })
+    setStatusMessage('Edição manual das métricas ativada. A referência original do arquivo foi preservada.')
+  }
+
+  function restoreOriginalImportedMetrics() {
+    dispatchHistory({ type: 'update', next: restoreImportedMetrics(history.present) })
+    setStatusMessage('Métricas originais da atividade importada restauradas.')
   }
 
   async function selectPhoto(file: File | undefined) {
@@ -401,11 +439,29 @@ export function Studio() {
 
       <div className="controls" aria-label="Controles do estúdio">
         {pendingDraft && <section className="recovery-panel panel" aria-labelledby="recovery-title">
-          <div><span className="eyebrow">Rascunho local</span><h2 id="recovery-title">Continuar de onde você parou?</h2><p>Existe uma edição salva somente neste navegador. Escolha recuperá-la ou começar com os valores padrão.</p></div>
+          <div><span className="eyebrow">Rascunho local</span><h2 id="recovery-title">Continuar de onde você parou?</h2><p>Existe uma edição salva somente neste navegador. Escolha recuperá-la ou manter os dados que estão no editor. Nada será excluído automaticamente.</p></div>
           <div className="recovery-actions">
             <button className="button primary" onClick={recoverDraft} type="button">Recuperar rascunho</button>
-            <button className="button" onClick={startNewEdition} type="button">Começar nova edição</button>
+            <button className="button" onClick={keepCurrentEdition} type="button">{importedProvenance ? 'Manter corrida importada' : 'Manter edição atual'}</button>
           </div>
+        </section>}
+
+        {importedProvenance && <section className={`imported-source-panel panel${importedProvenance.edited ? ' imported-source-edited' : ''}`} aria-label="Origem dos dados da corrida">
+          <ShieldCheck size={22} aria-hidden="true" />
+          <div>
+            <span className="eyebrow">Fonte {importedProvenance.reference.format.toUpperCase()}</span>
+            <h2>{importedProvenance.edited ? 'Métricas em edição manual' : 'Dados importados protegidos'}</h2>
+            <p>{importedProvenance.edited
+              ? 'A prévia usa os valores editados. A referência original do arquivo continua preservada e pode ser restaurada.'
+              : `Distância, ${importedProvenance.reference.durationBasis === 'timer' ? 'tempo de cronômetro' : 'tempo decorrido'}, pace e métricas disponíveis vieram da atividade normalizada.`}</p>
+            {(importedProvenance.reference.maximumHeartRateBpm !== null || importedProvenance.reference.descentMeters !== null) && <p className="imported-reference-extra">Referência adicional preservada: {[
+              importedProvenance.reference.maximumHeartRateBpm === null ? null : `FC máxima ${Math.round(importedProvenance.reference.maximumHeartRateBpm)} bpm`,
+              importedProvenance.reference.descentMeters === null ? null : `descida ${Math.round(importedProvenance.reference.descentMeters)} m`,
+            ].filter(Boolean).join(' · ')}.</p>}
+          </div>
+          {importedProvenance.edited
+            ? <button className="button" onClick={restoreOriginalImportedMetrics} type="button"><RotateCcw size={16} aria-hidden="true" />Restaurar dados importados</button>
+            : <button className="button" onClick={unlockImportedMetrics} type="button">Editar métricas manualmente</button>}
         </section>}
 
         <section className="history-toolbar panel" aria-label="Histórico de edição">
@@ -451,6 +507,7 @@ export function Studio() {
               <input
                 aria-describedby={calculation.ok || !calculation.distanceError ? undefined : 'distance-error'}
                 aria-invalid={!calculation.ok && Boolean(calculation.distanceError)}
+                disabled={importedMetricsLocked}
                 inputMode="decimal"
                 onBlur={endTyping}
                 onChange={(event) => updateActivity('distance', event.target.value)}
@@ -460,11 +517,12 @@ export function Studio() {
               {!calculation.ok && calculation.distanceError && <span className="field-error" id="distance-error">{calculation.distanceError}</span>}
             </label>
             <label className="field">
-              Tempo
+              {importedProvenance?.reference.durationBasis === 'timer' ? 'Tempo de cronômetro' : importedProvenance?.reference.durationBasis === 'elapsed' ? 'Tempo decorrido' : 'Tempo'}
               <input
                 aria-describedby={!calculation.ok && calculation.durationError ? 'duration-error duration-help' : 'duration-help'}
                 aria-invalid={!calculation.ok && Boolean(calculation.durationError)}
                 inputMode="numeric"
+                disabled={importedMetricsLocked}
                 onBlur={endTyping}
                 onChange={(event) => updateActivity('duration', event.target.value)}
                 placeholder="Ex.: 54:40 ou 1:00:00"
@@ -476,7 +534,7 @@ export function Studio() {
             <div className="field pace-field">
               <span>Ritmo médio (min/km)</span>
               <span className="calculated-value"><Calculator size={16} aria-hidden="true" />{pace}</span>
-              <span className="field-help">Calculado automaticamente.</span>
+              <span className="field-help">{importedMetricsLocked ? `Preservado da atividade, com base no ${importedProvenance!.reference.durationBasis === 'timer' ? 'tempo de cronômetro' : 'tempo decorrido'}.` : 'Calculado automaticamente.'}</span>
             </div>
             <label className="field">
               Frequência cardíaca opcional (bpm)
@@ -484,6 +542,7 @@ export function Studio() {
                 aria-describedby={!heartRateValid ? 'heart-rate-error' : undefined}
                 aria-invalid={!heartRateValid}
                 inputMode="numeric"
+                disabled={importedMetricsLocked}
                 onBlur={endTyping}
                 onChange={(event) => updateActivity('heartRate', event.target.value)}
                 placeholder="Ex.: 158"
@@ -492,11 +551,12 @@ export function Studio() {
               {!heartRateValid && <span className="field-error" id="heart-rate-error">Informe um valor entre 1 e 250 bpm ou deixe em branco.</span>}
             </label>
             <label className="field">
-              Elevação opcional (m)
+              {importedProvenance ? 'Subida acumulada (m)' : 'Elevação opcional (m)'}
               <input
                 aria-describedby={!elevationValid ? 'elevation-error' : undefined}
                 aria-invalid={!elevationValid}
                 inputMode="decimal"
+                disabled={importedMetricsLocked}
                 onBlur={endTyping}
                 onChange={(event) => updateActivity('elevation', event.target.value)}
                 placeholder="Ex.: 84"
@@ -506,7 +566,7 @@ export function Studio() {
             </label>
             <label className="field">
               Data opcional
-              <input onBlur={endTyping} onChange={(event) => updateActivity('date', event.target.value)} type="date" value={activity.date} />
+              <input disabled={importedMetricsLocked} onBlur={endTyping} onChange={(event) => updateActivity('date', event.target.value)} type="date" value={activity.date} />
             </label>
             <label className="field field-wide">
               Título da atividade
@@ -521,7 +581,9 @@ export function Studio() {
               <span className="field-help" id="title-help">{activity.title.length}/48 caracteres. Em branco, usa “Sua corrida”.</span>
             </label>
           </div>
-          <p className="calculation-note">O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.</p>
+          <p className="calculation-note">{importedMetricsLocked
+            ? `O pace foi preservado da atividade normalizada e usa ${importedProvenance!.reference.durationBasis === 'timer' ? 'o tempo de cronômetro' : 'o tempo decorrido'}. Nenhum tempo em movimento foi inventado.`
+            : 'O ritmo médio é calculado com base no tempo informado. Caso sua atividade tenha pausas, o resultado poderá ser diferente do registrado no seu relógio ou aplicativo.'}</p>
         </Group>
 
         <Group title="Fotografia" open>

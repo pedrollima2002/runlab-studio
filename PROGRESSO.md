@@ -255,3 +255,49 @@
 **Qualidade** — `npm test` aprovou 83/83 testes; `npm run lint` e `npm run build` concluíram com sucesso. O teste funcional do Chromium aprovou importação de 21,10 km, 1:50:34, pace 5:14, FC 168/183, subida 36 m, descida 34 m, movimento indisponível com explicação, TCX sem elevação inventada, substituição, rotas e responsividade.
 
 **Próxima ação** — abrir a nova prévia do PR da 4A no celular, importar os arquivos Zepp sem os publicar, comparar distância, tempos, pace, FC e 36/34 m, conferir que movimento permanece indisponível se o FIT não trouxer uma métrica independente e repetir com TCX. Só após essa evidência deve-se aprovar a correção; a Etapa 4B não foi iniciada.
+
+## Etapa 4C antecipada — integração Análises → Estúdio. Status: implementada localmente; aguardando prévia e aparelho real.
+
+**Base confirmada em 19/11/2026** — `origin/main` apontava para o merge `1d23877` do PR #7 e continha os commits `a1b516d` e `31f4b42` da Etapa 4A. Antes desta implementação, 83/83 testes, lint e build passaram. O branch `codex/etapa-4c-integracao-estudio` foi criado diretamente dessa `main` atualizada.
+
+**Arquitetura** — `activity-to-studio.ts` é o adaptador puro entre `NormalizedActivity` e `EditorState`; ele não relê o arquivo nem recebe amostras, voltas ou GPS. `studio-session.tsx` mantém o estado mínimo da figurinha em memória acima das rotas, permitindo navegação normal sem URL ou armazenamento permanente. Distância, duração, base temporal, pace numérico original, FC, subida, data e formato são transferidos. FC máxima e descida permanecem na referência tipada e aparecem como informação de origem, pois os templates atuais não possuem campos próprios para elas.
+
+**Edição e rascunhos** — métricas importadas começam bloqueadas, com identificação FIT/TCX e base “cronômetro” ou “decorrido”. O usuário pode editar título e toda a aparência sem alterar medições. Liberar métricas exige confirmação explícita, marca a sessão como edição manual e mantém uma cópia restaurável dos dados originais. Um estado do Estúdio ou rascunho existente dispara confirmação antes da substituição; cancelar mantém a edição. O rascunho não é apagado e só recebe os dados quando o salvamento opt-in está ativo. Rascunhos v1 são migrados como manuais. Após recarga sem rascunho, campos ficam vazios e uma orientação pede nova importação, sem dados fictícios.
+
+**Privacidade** — a transferência não inclui nome do arquivo, pontos, coordenadas ou o binário FIT/TCX. O marcador de recarga em `sessionStorage` contém apenas `1`; o estado fica na memória. A automação encontrou somente URLs `blob:` locais criadas para foto/PNG e nenhuma requisição de rede externa.
+
+| Prompt 09 | Estado | Evidência em 19/11/2026 |
+| --- | --- | --- |
+| T1 · FIT → Estúdio | aprovado no Chromium | FIT sintético com CRC válido abriu o Estúdio pelo novo CTA. |
+| T2 · TCX → Estúdio | aprovado no Chromium | TCX v2 abriu o mesmo editor e exibiu origem TCX. |
+| T3 · Distância | aprovado | 21.100 m virou `21,1` internamente e 21,10 km na composição. |
+| T4 · Tempo e denominação | aprovado | 6.634 s permaneceu 1:50:34, identificado como tempo de cronômetro. |
+| T5 · Pace | aprovado | Referência exata preservada; apresentação arredondada para 5:14/km na prévia e nos PNGs. |
+| T6 · FC | aprovado | FC média 168 bpm transferida; FC máxima 183 bpm preservada como referência. |
+| T7 · Subida/descida | aprovado | Subida 36 m entrou no campo visual; descida 34 m permaneceu na referência sem ser confundida com subida. |
+| T8 · TCX sem elevação | aprovado | Campo ficou vazio e invisível; nenhuma altitude virou ganho fictício. |
+| T9 · Sem FC | aprovado | O segundo arquivo limpou FC e elevação da corrida anterior. |
+| T10 · Templates | aprovado no Chromium | Minimal, Performance e Clean mantiveram os dados importados. |
+| T11 · Cores | aprovado no Chromium | Alterar destaque para rosa não mudou métricas. |
+| T12 · Foto/enquadramento | aprovado no Chromium | JPEG e zoom 1,40× mantiveram distância, tempo e pace. |
+| T13 · Story | aprovado | PNG real RGBA de 1080 × 1920 px com métricas importadas. |
+| T14 · Feed | aprovado | PNG real RGBA de 1080 × 1350 px com métricas importadas. |
+| T15 · Transparente | aprovado | PNG RGBA com alfa, recortado a 1080 × 1236 px, com métricas corretas. |
+| T16 · Prévia × exportação | aprovado por inspeção | Capturas e três PNGs mantiveram título, data, 21,10 km, 1:50:34, 5:14, 168 bpm e 36 m na mesma composição canônica. |
+| T17 · Outra atividade | aprovado no Chromium | Confirmação foi exigida; aceitar substituiu 21,1 km por 5 km e limpou opcionais. |
+| T18 · Edição existente | aprovado | Cancelar a confirmação manteve a página e a edição; liberação manual/restauração também possui teste automatizado. |
+| T19 · Sem conta | aprovado no Chromium | Fluxo completo funcionou sem autenticação. |
+| T20 · Desfazer/refazer | aprovado no Chromium | Título voltou de “Longão importado” para “Corrida importada” e foi refeito. |
+| T21 · Rascunho | aprovado | Rascunho v2 recuperou proveniência/referência; v1 migrou como manual; JSON não continha GPS, amostras ou nome do arquivo. |
+| T22 · Recarga `/estudio` | aprovado no Chromium | Sem rascunho, mostrou orientação e campos vazios, nunca os dados demonstrativos. |
+| T23 · Navegação móvel | aprovado em viewport | Fluxo passou em 360 e 390 px sem overflow; não equivale a aparelho real. |
+| T24 · Editor manual | aprovado no Chromium | Em contexto novo, 5 km / 25:00 continuou em 5:00/km sem importação. |
+| T25 · Exportações anteriores | aprovado | Toda a suíte anterior permaneceu verde; dimensões, alfa, templates, foto e composição canônica continuam cobertos. |
+
+**Qualidade** — após a integração, `npm test` aprovou 94/94 testes, `npm run lint` e `npm run build` concluíram com sucesso. O Chromium validou 360, 390, 768 e 1280 px com `scrollWidth === clientWidth`. As imagens e scripts funcionais ficaram somente em `/tmp` e não entram no repositório.
+
+**Limitações e próxima ação** — fotografia continua restrita à aba e não sobrevive à navegação/recarga, conforme a política existente. FC máxima e descida são preservadas, mas ainda não são métricas selecionáveis nos templates. Prévia Vercel, Safari/iOS, Android real, Web Share nativo e arquivos Zepp reais continuam pendentes. A próxima ação é validar o PR em celular; a Etapa 4B de análise avançada continua pendente e não foi iniciada.
+
+### Planejamento posterior registrado — Etapa 4D
+
+A sequência planejada passa a ser **4A → 4C → 4D → 4B**. A futura Etapa 4D deverá usar coordenadas FIT/TCX para substituir o trajeto ilustrativo do Estúdio por um percurso real, com personalização de cor, espessura, tamanho e posição e com controles explícitos para ocultar locais sensíveis. A 4D não foi implementada neste branch: o adaptador 4C continua descartando amostras e GPS por privacidade. A análise avançada 4B permanece posterior à 4D.
