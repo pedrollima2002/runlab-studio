@@ -2,7 +2,8 @@ import { useEffect, useReducer, useRef, useState, type PointerEvent as ReactPoin
 import { Calculator, CheckCircle2, ChevronDown, Crosshair, Download, ImageOff, ImagePlus, LoaderCircle, Redo2, RotateCcw, ScanLine, Share2, Trash2, Undo2 } from 'lucide-react'
 import { templates } from './demo'
 import { downloadExport, exportFormatDetails, exportFormats, renderExport, type ExportFormat } from './export-engine'
-import { Sticker, type StickerData, type StickerMetric, type StickerPhoto } from './preview'
+import { Sticker, type StickerPhoto } from './preview'
+import type { StickerData, StickerMetric } from './sticker-data'
 import {
   calculatePhotoPlacement,
   defaultPhotoAdjustments,
@@ -389,6 +390,7 @@ export function Studio() {
           <Sticker
             appearance={{ ...appearance, mode: exportFormat === 'transparent' ? 'transparent' : 'full' }}
             data={stickerData}
+            format={exportFormat}
             photo={previewPhoto}
             showSafeArea={Boolean(previewPhoto)}
             template={appearance.template}

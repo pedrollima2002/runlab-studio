@@ -46,7 +46,7 @@ O Estúdio gera três modalidades reais de PNG:
 | Story | 1080 × 1920 px, proporção 9:16 e fundo do template |
 | Feed | 1080 × 1350 px, proporção 4:5 e composição reorganizada |
 
-A composição é criada no próprio navegador: o RUNLAB monta um SVG vetorial com os dados e parâmetros visuais compartilhados pela prévia, aguarda as fontes disponíveis, rasteriza em Canvas na resolução final e codifica o PNG. Não há serviço externo de imagem, upload ou armazenamento do arquivo. URLs temporárias são revogadas após o uso.
+A composição é criada no próprio navegador a partir de uma única fonte visual: o mesmo SVG vetorial que aparece na prévia é desenhado no Canvas na resolução final e codificado como PNG. Geometria, tipografia, barras decorativas, logomarca, cores e formato deixam, portanto, de ser reconstruídos por um segundo layout de exportação. A fotografia continua abaixo desse SVG e usa o mesmo cálculo normalizado de recorte, zoom, foco e contraste nos dois destinos. Não há serviço externo de imagem, upload ou armazenamento do arquivo. URLs temporárias são revogadas após o uso.
 
 Story e Feed incorporam a fotografia enquadrada, o contraste e as métricas. O PNG transparente mantém somente elementos e textos da figurinha, mesmo quando existe uma foto selecionada. O botão **Compartilhar** usa Web Share API com arquivo PNG somente após toque/clique explícito; quando o navegador não oferece esse recurso, o download permanece disponível. Isso não publica automaticamente no Instagram.
 

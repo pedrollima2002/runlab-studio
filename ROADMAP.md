@@ -40,6 +40,8 @@
 
 **Entregue em 3B** — JPEG/PNG/WebP locais com validação e orientação EXIF, redução interna de imagens grandes, enquadramento normalizado compartilhado pela prévia e Canvas, zoom, arraste, centralização, contraste, guia de área segura, Story/Feed com foto, PNG transparente sem foto, Web Share com arquivo e fallback de download. Fotografias e URLs temporárias ficam fora dos rascunhos e são liberadas ao substituir, remover ou sair.
 
+**Correção WYSIWYG da 3B** — prévia e exportação passaram a usar exatamente o mesmo SVG de composição para cada template e formato. A correção removeu os layouts independentes que divergiam em barras, posições, tipografia e símbolo RUNLAB; fotografia, recorte e contraste permanecem compartilhados por coordenadas normalizadas. A validação local comparou PNGs reais de Minimal, Performance e Clean em Story e Feed. O aceite em aparelho real pela prévia hospedada continua pendente.
+
 **Validação pendente** — apesar da cobertura automatizada e funcional em Chromium, a Etapa 3 não está encerrada até executar o fluxo em celular real, Safari/iOS e prévia Vercel. Web Share foi exercitado com API simulada; o menu nativo e aplicativos de destino não foram testados. Pinça não foi implementada; zoom permanece disponível pelo slider.
 
 **Testes** — canal alfa, dimensões, camadas, acentos, fontes, margens, cortes e alternativa de download em Android e desktop.  

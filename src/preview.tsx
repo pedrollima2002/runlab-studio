@@ -1,6 +1,7 @@
-import type { CSSProperties, ReactNode } from 'react'
-import { Activity } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import { demo, metrics } from './demo'
+import { createExportSvg, type ExportFormat } from './export-engine'
+import type { StickerData } from './sticker-data'
 import {
   accentColors,
   templateDefaults,
@@ -12,19 +13,7 @@ import {
   type Template,
   type TextColor,
 } from './studio-config'
-
-export type StickerMetric = {
-  key: MetricKey
-  label: string
-  value: string
-  unit: string
-}
-
-export type StickerData = {
-  title: string
-  date?: string
-  metrics: StickerMetric[]
-}
+export type { StickerData, StickerMetric } from './sticker-data'
 
 export type StickerPhoto = {
   url: string
@@ -66,52 +55,18 @@ export function CourseArt({ compact = false }: { compact?: boolean }) {
   </svg>
 }
 
-function Brand() {
-  return <span className="sticker-brand"><Activity size={18} aria-hidden="true" /> RUNLAB</span>
-}
-
-function ActivityHeading({ data }: { data: StickerData }) {
-  return <div className="sticker-title">
-    <p>{data.title}</p>
-    {data.date && <time>{data.date}</time>}
-  </div>
-}
-
-function TemplateComposition({ template, data }: { template: Template; data: StickerData }): ReactNode {
-  if (template === 'Minimal') {
-    return <>
-      <Brand />
-      <div className="minimal-content"><ActivityHeading data={data} /><Metrics data={data} /></div>
-      <span className="minimal-mark" aria-hidden="true" />
-    </>
-  }
-
-  if (template === 'Clean') {
-    return <>
-      <div className="clean-heading"><ActivityHeading data={data} /><span>RUNLAB</span></div>
-      <CourseArt compact />
-      <div className="clean-metrics"><Metrics data={data} /></div>
-      <Brand />
-    </>
-  }
-
-  return <>
-    <Brand />
-    <CourseArt />
-    <div className="sticker-info"><ActivityHeading data={data} /><Metrics data={data} /></div>
-  </>
-}
-
 export function Sticker({
   template = 'Performance',
   data = defaultData,
   appearance,
+  format = 'story',
   photo,
   showSafeArea = false,
 }: {
   template?: Template
   data?: StickerData
   appearance?: StickerAppearance
+  format?: ExportFormat
   photo?: StickerPhoto
   showSafeArea?: boolean
 }) {
@@ -127,18 +82,22 @@ export function Sticker({
     '--photo-gradient-middle': photoGradient * (cleanPhoto ? .18 : 0),
     '--photo-gradient-bottom': photoGradient * (cleanPhoto ? .78 : 1),
   } as CSSProperties
+  const composition = createExportSvg(data, { ...selectedAppearance, template }, format, { hasPhoto: Boolean(photo) })
 
   return <article
     aria-label={`Figurinha ${template}`}
     className={`sticker sticker-${template.toLowerCase()} sticker-${selectedAppearance.layout} sticker-${selectedAppearance.mode}${photo ? ' sticker-photo' : ''}`}
     style={style}
   >
-    {photo && <div className="sticker-photo-layer" aria-hidden="true">
-      <img alt="" draggable={false} src={photo.url} style={photo.placement} />
-      <span className="photo-darkness" />
-      <span className="photo-gradient" />
-    </div>}
-    <TemplateComposition data={data} template={template} />
+    <div className="sticker-render-surface">
+      {photo && <div className="sticker-photo-layer" aria-hidden="true">
+        <img alt="" draggable={false} src={photo.url} style={photo.placement} />
+        <span className="photo-darkness" />
+        <span className="photo-gradient" />
+      </div>}
+      <div aria-hidden="true" className="sticker-composition" dangerouslySetInnerHTML={{ __html: composition.svg }} />
+    </div>
+    <span className="sr-only">{data.title}. {data.metrics.map((metric) => `${metric.label}: ${metric.value} ${metric.unit}`).join('. ')}</span>
     {showSafeArea && <span className="safe-area-guide" aria-hidden="true" />}
   </article>
 }
