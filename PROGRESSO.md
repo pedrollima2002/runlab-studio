@@ -298,6 +298,75 @@
 
 **Limitações e próxima ação** — fotografia continua restrita à aba e não sobrevive à navegação/recarga, conforme a política existente. FC máxima e descida são preservadas, mas ainda não são métricas selecionáveis nos templates. Prévia Vercel, Safari/iOS, Android real, Web Share nativo e arquivos Zepp reais continuam pendentes. A próxima ação é validar o PR em celular; a Etapa 4B de análise avançada continua pendente e não foi iniciada.
 
-### Planejamento posterior registrado — Etapa 4D
+### Planejamento posterior registrado na Etapa 4C
 
-A sequência planejada passa a ser **4A → 4C → 4D → 4B**. A futura Etapa 4D deverá usar coordenadas FIT/TCX para substituir o trajeto ilustrativo do Estúdio por um percurso real, com personalização de cor, espessura, tamanho e posição e com controles explícitos para ocultar locais sensíveis. A 4D não foi implementada neste branch: o adaptador 4C continua descartando amostras e GPS por privacidade. A análise avançada 4B permanece posterior à 4D.
+A sequência **4A → 4C → 4D → 4B** foi registrada na entrega anterior. A seção abaixo atualiza esse planejamento com a implementação da 4D; a análise avançada 4B permanece posterior e não foi iniciada.
+
+## Etapa 4D — trajetos GPS reais. Status: implementada na branch; aguardando PR, Vercel e aparelho real.
+
+**Base e diagnóstico em 19/11/2026** — a branch `codex/etapa-4d-trajetos-gps` foi criada da `main` no merge `b3734b9`, que já continha a Etapa 4C. A linha de base aprovou 94/94 testes, lint e build. `fit-file-parser` já multiplica campos FIT em semicircles por sua constante de conversão antes de entregá-los; por isso a nova guarda converte somente valores que ainda excedem ±90/±180. O TCX já extraía `Position`, mas achatava voltas e reconhecia somente um `Track` por volta, o que apagava limites de segmento. O renderizador usava uma linha decorativa fixa nos templates Clean e Performance, enquanto o Minimal não reservava percurso.
+
+**Implementação** — amostras normalizadas agora podem carregar `segmentId`; cada `Lap/Track` TCX mantém seu limite e FIT recebe validação defensiva sem reconversão dupla. `route-geometry.ts` separa pontos originais da geometria de desenho, valida limites e zero, remove duplicatas, separa saltos implausíveis, preserva segmentos, recorta privacidade por distância, desembrulha o antimeridiano, projeta longitude com correção pela latitude média, centraliza com margem e aplica Ramer–Douglas–Peucker a uma cópia limitada a 1.000 pontos por segmento. Uma única escala é usada nos eixos, inclusive na área final do template.
+
+**Estúdio e privacidade** — a rota fica no `StudioSessionContext` somente em memória; o `EditorState` versionado guarda apenas cor, espessura, escala, deslocamento, visibilidade, marcadores e opção de recorte. Rascunhos v1/v2 migram com padrões seguros, sem coordenadas. A importação sempre chama `setRoute`, inclusive com `null`, impedindo herança. O recorte de 100/200/500 m altera só o SVG; métricas e referência original permanecem iguais. Percursos curtos recebem aviso. A primeira exportação identificável por sessão pede confirmação e explica que o recorte não garante anonimato.
+
+**Prévia e exportação** — `StickerData.route` distingue três estados: rota real, atividade importada sem GPS e criação manual ilustrativa. `createExportSvg` é a fonte canônica usada tanto por `Sticker` quanto pelo Canvas/PNG; portanto cor, largura, escala, posição, marcadores e recorte percorrem a mesma renderização. O Chromium gerou PNG transparente, Story e Feed com a rota sintética e confirmou que uma segunda atividade sem GPS remove a geometria real e não reativa a ilustração.
+
+| Caso 4D | Estado | Evidência executada em 19/11/2026 |
+| --- | --- | --- |
+| T01 | aprovado | FIT normalizado produziu dois pontos GPS válidos. |
+| T02 | aprovado | Objeto FIT sintético em semicircles foi convertido para 45° uma única vez. |
+| T03 | aprovado | -23,55/-46,63 já em graus permaneceu idêntico. |
+| T04 | aprovado | FIT sem posições retornou rota ausente. |
+| T05 | aprovado | Registro intermediário sem posição foi ignorado. |
+| T06 | aprovado | Identificadores de segmento produziram dois caminhos independentes. |
+| T07 | aprovado | Trackpoints TCX viraram pontos válidos. |
+| T08 | aprovado | Namespace TCX v2 foi removido e lido pelo parser. |
+| T09 | aprovado | TCX sem `Position` continuou importável, sem rota. |
+| T10 | aprovado | Duas voltas TCX mantiveram dois segmentos. |
+| T11 | aprovado | Dois `Track` não foram ligados artificialmente. |
+| T12 | aprovado | ±90/±180 e números finitos foram validados. |
+| T13 | aprovado | Latitude/longitude zero foram preservadas. |
+| T14 | aprovado | Duplicata consecutiva foi removida com aviso. |
+| T15 | aprovado | Salto incompatível com tempo/distância dividiu o segmento. |
+| T16 | aprovado | Projeção e escala única preservaram a relação dos eixos. |
+| T17 | aprovado | Extremos normalizados ficaram centrados em 125/90. |
+| T18 | aprovado | Coordenadas do desenho ficaram dentro das margens 12/238 e 12/168. |
+| T19 | aprovado | Linhas somente horizontais e somente verticais geraram SVG válido. |
+| T20 | aprovado | Um único ponto não gerou rota. |
+| T21 | aprovado | 10.000 pontos foram processados em cerca de 38 ms e desenho ficou ≤1.001 pontos. |
+| T22 | aprovado | 179,9° → -179,9° usou o caminho curto junto ao antimeridiano. |
+| T23 | aprovado no Chromium | TCX sintético passou de Análises ao Estúdio sem segundo upload. |
+| T24 | aprovado | SVG real apareceu e a assinatura do percurso decorativo ficou ausente. |
+| T25 | aprovado | Cor personalizada foi preservada no SVG. |
+| T26 | aprovado | Espessura personalizada foi preservada no SVG. |
+| T27 | aprovado | Escala personalizada foi preservada no transform. |
+| T28 | aprovado | Deslocamentos X/Y foram preservados no transform. |
+| T29 | aprovado | Visibilidade removeu/recolocou o grupo sem perder geometria. |
+| T30 | aprovado | Minimal, Performance e Clean renderizaram a mesma rota real. |
+| T31 | aprovado no Chromium | Segunda atividade sem GPS removeu rota anterior, sem linha fictícia. |
+| T32 | aprovado | Alterações visuais mantiveram todos os campos esportivos. |
+| T33 | aprovado | Recorte interpolou novos extremos no início e no fim. |
+| T34 | aprovado | Distância da referência permaneceu 21.100 m após recorte de 500 m. |
+| T35 | aprovado | Serialização guarda estilo, nunca segmentos/coordenadas. |
+| T36 | aprovado | Fluxo navegou apenas para `/estudio`; nenhuma coordenada apareceu na URL. |
+| T37 | aprovado | SVG recebeu exatamente os caminhos produzidos depois do recorte. |
+| T38 | aprovado no Chromium | PNG transparente real foi gerado pelo Canvas com rota. |
+| T39 | aprovado no Chromium | Story real foi gerado em 1080 × 1920. |
+| T40 | aprovado no Chromium | Feed real foi gerado em 1080 × 1350. |
+| T41 | parcial | Prévia e PNG usam e testam o mesmo SVG determinístico; comparação visual em aparelho/prévia Vercel ainda não executada. |
+| T42 | aprovado | Transform final usa escala uniforme e margens; não há `scale(x y)` desigual. |
+| T43 | aprovado | Fundo, título e métricas permaneceram no SVG com rota. |
+| T44 | aprovado | Suíte de pace/editor manual permaneceu verde e o desenho manual é identificado como ilustrativo. |
+| T45 | aprovado | Regressões FIT mantiveram 36 m de subida e 34 m de descida. |
+| T46 | aprovado | TCX com altitude continuou sem ganho acumulado inventado. |
+| T47 | aprovado | Adaptador 4C, proteção de métricas e referências permaneceram verdes. |
+| T48 | aprovado | Rascunho v3 e migrações v1/v2 não contêm latitude/longitude/amostras. |
+| T49 | aprovado | Desfazer/refazer restaurou cor e espessura do trajeto. |
+| T50 | aprovado | 132/132 testes, lint e build concluíram com sucesso. |
+
+**Validação funcional local** — um TCX sintético e anônimo de 5 km/25:00 foi importado em Chromium. Análises reconheceu GPS; o Estúdio mostrou rota real, métricas e sete controles de trajeto; a assinatura decorativa não apareceu. PNG transparente, Story e Feed concluíram a codificação. Viewports 360, 390, 768 e 1280 px tiveram `scrollWidth === clientWidth`. O monitor de recursos não encontrou origem externa. Uma segunda versão do mesmo TCX sem posições exibiu “Percurso GPS não disponível nesta atividade.”, sem rota real ou fictícia. Isso não equivale a Safari/iOS, Android físico ou inspeção visual dos arquivos na galeria.
+
+**Qualidade e limitações** — `npm test` aprovou 132/132, `npm run lint` e `npm run build` passaram; o build manteve apenas os avisos conhecidos de `use client` do React Router. Não foram usados arquivos pessoais. Permanecem pendentes T41 em inspeção visual hospedada, arquivos reais de relógios diferentes, aparelhos físicos e a prévia Vercel. A Etapa 4B continua posterior e não foi iniciada.
+
+**Próxima ação** — abrir o PR, aguardar a Vercel e testar no celular um FIT/TCX próprio sem publicá-lo: conferir formato do percurso, recorte 100/200/500 m, controles por toque, três PNGs e troca por atividade sem GPS. Só então registrar o aceite visual da T41.
