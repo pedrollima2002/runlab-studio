@@ -1,8 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Analyses } from './analyses'
 import { Layout } from './layout'
-import { Analyses, History, Home, Login, NotFound, Profile } from './pages'
+import { History, Home, Login, NotFound, Profile } from './pages'
 import { Studio } from './studio'
 import './styles.css'
 

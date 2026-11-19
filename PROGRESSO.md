@@ -160,3 +160,49 @@
 **Limitações remanescentes** — a comparação automatizada foi executada localmente e não adicionou Playwright/Pillow ao projeto ou ao CI. A rasterização de fontes pode variar entre navegadores que não tenham a mesma fonte disponível. Safari/iOS, Android real, prévia Vercel, toque real, galeria e compartilhamento nativo ainda não foram validados; a correção permanece em validação até esse teste manual.
 
 **Próxima ação** — revisar o PR e a prévia Vercel em celular real: fotografar ou escolher JPEG, ajustar com toque, alternar Story/Feed, baixar, compartilhar e conferir os PNGs na galeria. Só depois dessa evidência marcar a Etapa 3 como concluída.
+
+## Etapa 4A — Importação FIT/TCX e métricas básicas. Status: implementada localmente; em validação.
+
+**Linha de base em 19/11/2026** — a correção WYSIWYG estava incorporada à `main` pelo merge `8184261`. Antes desta etapa, `npm test` aprovou 43/43 testes, lint e build; a página Análises ainda mostrava somente dados fictícios.
+
+**Arquitetura** — `activity-types.ts` define a atividade normalizada e a origem/estado de cada métrica; `activity-normalization.ts` valida unidades, timestamps e cálculos; `activity-fit.ts` e `activity-tcx.ts` isolam os formatos; `activity-import-policy.ts` aplica extensão, vazio e limite de 20 MB; `activity-parse.ts` valida o conteúdo real; `activity-import.worker.ts` executa parsing fora da thread da interface com timeout de 30 segundos; `analyses.tsx` contém somente o fluxo e a apresentação. O bundle inicial não carrega os parsers: eles ficam em Worker/chunk separado.
+
+**Bibliotecas** — `fit-file-parser` 6.2.10 (MIT, TypeScript, atualizado em 17/11/2026) foi escolhido em vez de um parser binário próprio. Ele opera com `force: false` e `strict: true`, exigindo CRC, estrutura e registros completos. `fast-xml-parser` 5.12.1 (MIT) valida TCX; processamento de entidades fica desativado e `DOCTYPE`/`ENTITY` são recusados antes do parse.
+
+**Modelo e metodologia** — metros, segundos e bpm permanecem numéricos. Cada métrica registra valor, disponibilidade/inconsistência e origem. Resumo de sessão FIT ou soma de voltas TCX precede amostras; divergência acima de 1% ou 50 m gera aviso. Tempo de cronômetro, decorrido e movimento nunca são tratados como sinônimos. O pace usa cronômetro quando disponível e decorrido como alternativa identificada. Tempo em movimento não é inferido. FC usa resumo válido ou amostras entre 1 e 250 bpm. Elevação só usa resumo fornecido pelo arquivo; altitudes não são somadas. Timestamps exigem UTC/offset, são ordenados e duplicatas são consolidadas.
+
+| Teste 4A | Estado | Evidência em 19/11/2026 |
+| --- | --- | --- |
+| T1 · FIT válido | aprovado | Fixture FIT de 182 bytes com estrutura e CRC válidos: 10.000 m, 3.280 s, FC 155/170, elevação resumida 84 m e três pontos GPS. |
+| T2 · TCX válido | aprovado | TCX v2 com duas voltas e três trackpoints normalizado para 10.000 m e 3.280 s. |
+| T3 · Incompatível | aprovado | XML declarado como FIT foi recusado pela ausência da assinatura `.FIT`. |
+| T4 · Corrompido | aprovado | Alteração no CRC do FIT produziu erro compreensível sem derrubar o processo. |
+| T5 · Vazio | aprovado | Metadado com zero byte recusado antes do parsing. |
+| T6 · Tamanho | aprovado | Limite documentado de 20 MB; tamanho superior recusado antes da leitura. |
+| T7 · Sem GPS | aprovado | TCX sem `Position` importado; nenhuma coordenada inventada. |
+| T8 · Sem FC | aprovado | FC média/máxima permanecem ausentes e a interface informa indisponibilidade. |
+| T9 · 10 km / 54:40 | aprovado | Referência independente: 328 s/km = 5:28/km. |
+| T10 · 5 km / 25:00 | aprovado | Referência independente: 300 s/km = 5:00/km. |
+| T11 · Distância zero | aprovado | Cálculo retorna ausência, nunca divisão por zero, `Infinity` ou `NaN`. |
+| T12 · Ordem temporal | aprovado | Registros fora de ordem são ordenados; duplicatas são consolidadas e duração permanece não negativa. |
+| T13 · Pausas ausentes | aprovado | Tempo em movimento permanece indisponível sem resumo explícito. |
+| T14 · Ausências/inválidos | aprovado | Distância negativa, tempo infinito e FC zero/fora do limite não viram medições. |
+| T15 · Fuso | aprovado | UTC e `-03:00` representando os mesmos intervalos produzem a mesma duração. |
+| T16 · Equivalência | aprovado | Fixtures FIT e TCX equivalentes produziram exatamente distância, cronômetro, pace e FC iguais. |
+| T17 · Processamento | aprovado no Chromium | MutationObserver confirmou a exibição do estado “Lendo e validando” durante o Worker. |
+| T18 · Resultado real | aprovado no Chromium | Upload FIT exibiu 10,00 km, 54:40, 5:28 min/km, 155/170 bpm e origem FIT. |
+| T19 · Erro | aprovado no Chromium | FIT incompatível exibiu mensagem sobre assinatura e a seleção continuou utilizável. |
+| T20 · Troca | aprovado no Chromium | Trocar FIT por TCX removeu nome/origem anteriores e exibiu somente a nova atividade. |
+| T21 · Limpar | aprovado no Chromium | Limpeza removeu resultados e restaurou o seletor inicial. |
+| T22 · Responsividade | aprovado em viewport | 360, 390, 768 e 1280 px com `scrollWidth === clientWidth`; captura completa conferida em 390 e 1280 px. Não equivale a aparelho real. |
+| T23 · Rotas | aprovado | Início, Estúdio, Análises, Histórico, Perfil, Entrar e 404 responderam HTTP 200 com títulos esperados. |
+| T24 · Recarga direta | aprovado localmente | `/analises` abriu diretamente e continuou funcional após `reload`. |
+| T25 · Estúdio | aprovado | Regressões automatizadas anteriores passaram e 5 km / 25:00 continuou exibindo 5:00 no Estúdio. |
+
+**Privacidade verificada** — a automação não observou requisições externas durante seleção, Worker e resultados. Nenhuma coordenada é exibida, persistida ou registrada. Atividade e Worker são descartados ao terminar, limpar ou substituir; não há `localStorage`, banco, API, autenticação ou mapa.
+
+**Resultados de qualidade** — 60/60 testes automatizados, lint e build concluídos com sucesso; `npm audit --omit=dev` encontrou zero vulnerabilidades conhecidas. O build preserva apenas os avisos conhecidos das diretivas `use client` do React Router. O bundle inicial ficou em aproximadamente 103,5 kB gzip; parser/Worker ficam separados e carregam somente na importação.
+
+**Limitações conhecidas** — as fixtures cobrem FIT com campos padrão/CRC válido e TCX v2 de corrida; não vieram de uma matriz de relógios ou aplicativos reais, portanto não há alegação de compatibilidade ampla com marcas. Arquivos concatenados, cursos TCX, multiesporte e múltiplas atividades não são combinados; quando há múltiplas sessões/atividades, uma é escolhida com aviso. Não há mapa, gráfico, zonas, parciais calculadas, elevação avançada, integração com Estúdio, persistência ou importação múltipla. Safari/iOS, Android real e prévia Vercel seguem pendentes.
+
+**Próxima subetapa recomendada** — validar a 4A com arquivos reais e aparelhos móveis pela prévia do PR; depois iniciar 4B com metodologia testada para parciais, pausas/tempo em movimento e qualidade de elevação, sem antecipar mapas públicos.
