@@ -1,7 +1,11 @@
 import { useRef, useState, type ChangeEvent } from 'react'
-import { Activity, AlertTriangle, CheckCircle2, FileCheck2, FileUp, HeartPulse, LoaderCircle, LockKeyhole, RotateCcw, Route, Timer, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Activity, AlertTriangle, CheckCircle2, FileCheck2, FileUp, HeartPulse, LoaderCircle, LockKeyhole, RotateCcw, Route, Sparkles, Timer, Trash2 } from 'lucide-react'
 import { ActivityImportError, importActivityFile, MAX_ACTIVITY_FILE_BYTES } from './activity-import.ts'
+import { adaptActivityToStudio, canTransferActivityToStudio } from './activity-to-studio.ts'
 import type { ActivityMetric, NormalizedActivity } from './activity-types.ts'
+import { createDefaultEditorState, DRAFT_STORAGE_KEY, isMeaningfullyEdited } from './studio-config.ts'
+import { markImportedSession, useStudioSession } from './studio-session.tsx'
 
 type ImportState =
   | { status: 'idle'; message: string }
@@ -88,17 +92,20 @@ function EmptyImporter({ inputRef, state, onFile }: {
   </section>
 }
 
-function ActivitySummary({ activity, onClear, onReplace }: { activity: NormalizedActivity; onClear: () => void; onReplace: () => void }) {
+function ActivitySummary({ activity, onClear, onReplace, onCreate }: { activity: NormalizedActivity; onClear: () => void; onReplace: () => void; onCreate: () => void }) {
   const metrics = activity.metrics
+  const transferable = canTransferActivityToStudio(activity)
   const durationMetric = metrics.timerSeconds.value !== null ? metrics.timerSeconds : metrics.elapsedSeconds
   const durationLabel = metrics.timerSeconds.value !== null ? 'Tempo de cronômetro' : 'Tempo decorrido'
   return <div className="activity-results">
     <section className="panel activity-result-heading">
       <div><span className="eyebrow"><CheckCircle2 size={17} aria-hidden="true" /> Importação concluída</span><h2>{activity.source.fileName}</h2><p>Dados processados localmente. Nenhuma coordenada ou informação da atividade foi enviada.</p></div>
       <div className="activity-result-actions">
+        <button className="button primary activity-create-sticker" disabled={!transferable} onClick={onCreate} type="button"><Sparkles size={16} aria-hidden="true" />Criar figurinha desta corrida</button>
         <button className="button primary" onClick={onReplace} type="button"><RotateCcw size={16} aria-hidden="true" />Importar outra</button>
         <button className="button danger-button" onClick={onClear} type="button"><Trash2 size={16} aria-hidden="true" />Limpar atividade</button>
       </div>
+      {!transferable && <p className="activity-transfer-help">A figurinha exige distância, duração e pace válidos nesta atividade.</p>}
     </section>
 
     <section className="panel content-panel" aria-labelledby="activity-summary-title">
@@ -146,6 +153,8 @@ function ActivitySummary({ activity, onClear, onReplace }: { activity: Normalize
 
 export function Analyses() {
   const inputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
+  const studioSession = useStudioSession()
   const [state, setState] = useState<ImportState>({ status: 'idle', message: 'O arquivo permanece somente na memória desta aba.' })
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -166,6 +175,23 @@ export function Analyses() {
     setState({ status: 'idle', message: 'Atividade removida da memória. Você pode importar outro arquivo.' })
   }
 
+  function createSticker(activity: NormalizedActivity) {
+    if (!canTransferActivityToStudio(activity)) return
+    let hasStoredDraft = false
+    try {
+      hasStoredDraft = window.localStorage.getItem(DRAFT_STORAGE_KEY) !== null
+    } catch {
+      // A ausência de acesso ao armazenamento não impede o fluxo temporário.
+    }
+    const hasCurrentEdition = studioSession.editorState !== null && isMeaningfullyEdited(studioSession.editorState)
+    if ((hasStoredDraft || hasCurrentEdition) && !window.confirm('Já existe uma edição ou rascunho no Estúdio. Utilizar a corrida importada e substituir os dados atuais? O rascunho salvo não será excluído.')) return
+
+    const base = studioSession.editorState ?? createDefaultEditorState()
+    studioSession.setEditorState(adaptActivityToStudio(activity, base))
+    markImportedSession()
+    navigate('/estudio')
+  }
+
   return <>
     <div className="page-heading analysis-page-heading">
       <span className="eyebrow"><Route size={17} aria-hidden="true" /> Análises RUNLAB</span>
@@ -174,7 +200,7 @@ export function Analyses() {
     </div>
     <section className="analysis-privacy panel"><LockKeyhole aria-hidden="true" /><div><h2>Privado por padrão, sem cadastro</h2><p>O arquivo é processado neste navegador, não é enviado para APIs e não é salvo em servidor. Rotas GPS podem revelar locais sensíveis; mapas não são exibidos nesta etapa.</p></div><Timer aria-hidden="true" /></section>
     {state.status === 'success'
-      ? <ActivitySummary activity={state.activity} onClear={clearActivity} onReplace={() => inputRef.current?.click()} />
+      ? <ActivitySummary activity={state.activity} onClear={clearActivity} onCreate={() => createSticker(state.activity)} onReplace={() => inputRef.current?.click()} />
       : <EmptyImporter inputRef={inputRef} state={state} onFile={handleFile} />}
     {state.status === 'success' && <input ref={inputRef} accept=".fit,.tcx,application/vnd.ant.fit,application/xml,text/xml" aria-label="Escolher outra atividade" className="sr-only" onChange={handleFile} type="file" />}
   </>

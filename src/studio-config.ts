@@ -15,6 +15,24 @@ export type ActivityData = {
   elevation: string
 }
 
+export type ImportedActivityReference = {
+  format: 'fit' | 'tcx'
+  durationBasis: 'timer' | 'elapsed'
+  distanceMeters: number
+  durationSeconds: number
+  paceSecondsPerKilometer: number
+  averageHeartRateBpm: number | null
+  maximumHeartRateBpm: number | null
+  ascentMeters: number | null
+  descentMeters: number | null
+  startedAt: string | null
+  original: ActivityData
+}
+
+export type ActivityProvenance =
+  | { kind: 'manual' }
+  | { kind: 'imported'; edited: boolean; reference: ImportedActivityReference }
+
 export type MetricVisibility = Record<MetricKey, boolean>
 
 export type Appearance = {
@@ -29,6 +47,7 @@ export type Appearance = {
 export type EditorState = {
   activity: ActivityData
   appearance: Appearance
+  provenance: ActivityProvenance
 }
 
 export type EditorHistory = {
@@ -49,7 +68,7 @@ export type DraftParseResult =
   | { ok: false; reason: string }
 
 export const DRAFT_STORAGE_KEY = 'runlab-studio:draft'
-export const DRAFT_VERSION = 1
+export const DRAFT_VERSION = 2
 export const HISTORY_LIMIT = 50
 
 export const accentColors: Record<AccentColor, { label: string; value: string }> = {
@@ -109,6 +128,15 @@ export function createDefaultEditorState(): EditorState {
       ...defaultAppearance,
       visibility: { ...defaultVisibility },
     },
+    provenance: { kind: 'manual' },
+  }
+}
+
+export function createEmptyEditorState(): EditorState {
+  const state = createDefaultEditorState()
+  return {
+    ...state,
+    activity: { distance: '', duration: '', title: '', date: '', heartRate: '', elevation: '' },
   }
 }
 
@@ -195,8 +223,31 @@ function isAppearance(value: unknown): value is Appearance {
     && metricKeys.every((key) => typeof visibility[key] === 'boolean')
 }
 
+function isNullableFiniteNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isProvenance(value: unknown): value is ActivityProvenance {
+  if (!isRecord(value) || (value.kind !== 'manual' && value.kind !== 'imported')) return false
+  if (value.kind === 'manual') return true
+  const reference = value.reference
+  return typeof value.edited === 'boolean'
+    && isRecord(reference)
+    && (reference.format === 'fit' || reference.format === 'tcx')
+    && (reference.durationBasis === 'timer' || reference.durationBasis === 'elapsed')
+    && typeof reference.distanceMeters === 'number' && Number.isFinite(reference.distanceMeters) && reference.distanceMeters > 0
+    && typeof reference.durationSeconds === 'number' && Number.isFinite(reference.durationSeconds) && reference.durationSeconds > 0
+    && typeof reference.paceSecondsPerKilometer === 'number' && Number.isFinite(reference.paceSecondsPerKilometer) && reference.paceSecondsPerKilometer > 0
+    && isNullableFiniteNumber(reference.averageHeartRateBpm)
+    && isNullableFiniteNumber(reference.maximumHeartRateBpm)
+    && isNullableFiniteNumber(reference.ascentMeters)
+    && isNullableFiniteNumber(reference.descentMeters)
+    && (reference.startedAt === null || isShortString(reference.startedAt, 40))
+    && isActivityData(reference.original)
+}
+
 function isEditorState(value: unknown): value is EditorState {
-  if (!isRecord(value) || !isActivityData(value.activity) || !isAppearance(value.appearance)) return false
+  if (!isRecord(value) || !isActivityData(value.activity) || !isAppearance(value.appearance) || !isProvenance(value.provenance)) return false
 
   const { activity, appearance } = value
   return appearance.visibility.distance
@@ -215,16 +266,24 @@ export function parseDraft(raw: string): DraftParseResult {
 
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed) || parsed.version !== DRAFT_VERSION) {
+    if (!isRecord(parsed) || (parsed.version !== 1 && parsed.version !== DRAFT_VERSION)) {
       return { ok: false, reason: 'A versão do rascunho salvo não é compatível.' }
     }
-    if (!isEditorState(parsed.editor)) {
+    const editor = parsed.version === 1 && isRecord(parsed.editor)
+      ? { ...parsed.editor, provenance: { kind: 'manual' as const } }
+      : parsed.editor
+    if (!isEditorState(editor)) {
       return { ok: false, reason: 'O rascunho salvo contém dados inválidos.' }
     }
-    return { ok: true, state: parsed.editor }
+    return { ok: true, state: editor }
   } catch {
     return { ok: false, reason: 'O rascunho salvo não pôde ser lido.' }
   }
+}
+
+export function isMeaningfullyEdited(state: EditorState): boolean {
+  if (state.provenance.kind === 'imported') return true
+  return JSON.stringify(state) !== JSON.stringify(createDefaultEditorState())
 }
 
 export function selectTemplate(appearance: Appearance, template: Template): Appearance {

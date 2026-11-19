@@ -140,6 +140,13 @@ kbd { border: 1px solid #465163; border-radius: .25rem; padding: .05rem .25rem; 
 .recovery-panel h2 { margin-block: .35rem; }
 .recovery-panel p { color: var(--muted); font-size: .85rem; }
 .recovery-actions, .draft-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .5rem; }
+.imported-source-panel { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .75rem; padding: 1rem; border-color: #2e7d57; }
+.imported-source-panel > svg { color: #69d29a; }
+.imported-source-panel h2 { margin-block: .3rem; }
+.imported-source-panel p { color: var(--muted); font-size: .8rem; }
+.imported-source-panel > .button { grid-column: 1 / -1; }
+.imported-source-edited { border-color: #9a5a2d; }
+.imported-reference-extra { margin-top: .35rem; }
 .draft-controls { display: grid; gap: .8rem; }
 .save-toggle { min-height: 52px; display: flex; align-items: start; gap: .6rem; border: 1px solid #465163; border-radius: .65rem; padding: .7rem; cursor: pointer; }
 .save-toggle input { margin-top: .2rem; }
@@ -165,6 +172,7 @@ details[open] > summary svg { transform: rotate(180deg); }
 .field { display: flex; flex-direction: column; gap: .2rem; font-size: .78rem; color: var(--muted); }
 .field-wide { grid-column: 1 / -1; }
 .field :is(input, select) { min-height: 44px; min-width: 0; width: 100%; border: 1px solid #465163; border-radius: .55rem; padding: .5rem; color: #e6edf6; background: #0e131a; font-size: .9rem; }
+.field input:disabled { opacity: .82; color: #cdd7e4; border-color: #315846; background: #101b18; }
 .field input::placeholder { color: var(--muted); opacity: 1; }
 .field input[aria-invalid="true"] { border-color: #fb7185; }
 .field-help, .field-error { font-size: .72rem; line-height: 1.35; }
@@ -264,6 +272,8 @@ details[open] > summary svg { transform: rotate(180deg); }
 .activity-result-heading h2 { margin-block: .35rem; overflow-wrap: anywhere; }
 .activity-result-heading p { color: var(--muted); font-size: .82rem; }
 .activity-result-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .5rem; }
+.activity-create-sticker { grid-column: 1 / -1; }
+.activity-transfer-help { grid-column: 1 / -1; margin: 0; }
 .section-heading { display: flex; align-items: start; justify-content: space-between; gap: .8rem; }
 .section-heading > svg { flex: none; color: #ff9b59; }
 .activity-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: .55rem; }
