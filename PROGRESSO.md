@@ -128,4 +128,35 @@
 
 **Limitações conhecidas da 3B** — Safari/iOS, Android real, menu de compartilhamento nativo, aplicativos receptores e prévia Vercel não foram testados. Web Share varia por navegador e pode recusar PNG. Pinça para zoom não foi implementada; há slider por toque/teclado. O fallback sem `createImageBitmap` depende da decodificação nativa do elemento de imagem. O teste de recursos acompanha URLs, não substitui perfil de heap em aparelho intermediário.
 
+### Correção crítica WYSIWYG da Etapa 3B — 19/11/2026
+
+**Bug** — a prévia React/CSS e o PNG reconstruído em SVG eram dois layouts independentes. Embora ambos recebessem os mesmos dados, o Minimal da prévia usava indicadores verticais, posições e escalas CSS e o exportador usava linhas horizontais e coordenadas próprias. A prévia também usava o ícone Activity, enquanto o exportador desenhava outro símbolo. Essa duplicação, e não estado desatualizado ou troca silenciosa de template, causava a divergência observada com e sem fotografia.
+
+**Correção** — `createExportSvg` tornou-se a fonte canônica da composição. `Sticker` insere esse mesmo SVG na prévia, escalado pelo `viewBox`, e o exportador o desenha no Canvas na resolução final. A fotografia continua como camada inferior e usa o cálculo compartilhado de enquadramento; guia, borda e controles permanecem exclusivos do editor. O modelo de dados visual foi separado em `src/sticker-data.ts` para remover a dependência circular entre prévia e exportador. A mudança ficou limitada a `src/export-engine.ts`, `src/export-engine.test.ts`, `src/preview.tsx`, `src/sticker-data.ts`, `src/studio.tsx`, `src/styles.css`, `README.md`, `ROADMAP.md` e este relatório.
+
+| Teste | Estado | Evidência em 19/11/2026 |
+| --- | --- | --- |
+| T1–T3 · Minimal, Performance e Clean com foto | aprovado no Chromium | Os três templates foram comparados em Story e Feed, totalizando seis pares prévia/PNG real. Erro absoluto médio após normalização: 3,03–3,97 em 255; diferenças residuais concentradas em antialiasing e reamostragem, sem mudança estrutural. |
+| T4 · Barras decorativas | aprovado | Regressão automatizada exige `data-divider="vertical"` no Minimal à esquerda; inspeção do SVG exibido confirmou a mesma orientação. |
+| T5 · Logomarca | aprovado | Regressão exige o ícone Activity e seu mesmo path no SVG canônico usado pelos dois destinos. |
+| T6 · Escalas tipográficas | aprovado | Regressão fixa os tamanhos relativos de título, valor e unidade do caso Story Minimal; os seis pares visuais mantiveram posições e escalas. |
+| T7 · Cores | aprovado | Cor de destaque e texto são resolvidos uma vez no SVG compartilhado; as comparações de pixels incluíram as camadas coloridas dos templates. |
+| T8 · Foto: recorte, zoom e deslocamento | aprovado no Chromium | Foto horizontal exercitada com zoom 1,37× e arraste; Story e Feed preservaram o foco relativo nos PNGs correspondentes. Cálculos unitários de enquadramento continuam aprovados. |
+| T9 · Contraste | aprovado no Chromium | Escurecimento 31% e gradiente 46% participaram da comparação dos seis pares e permaneceram equivalentes. |
+| T10 · Story | aprovado | Todos os três PNGs decodificados com exatamente 1080 × 1920 px. |
+| T11 · Feed | aprovado | Todos os três PNGs decodificados com exatamente 1080 × 1350 px. |
+| T12 · Transparência | aprovado | PNG Minimal real em RGBA, recortado a 802 × 1241 px, com extremos do canal alfa 0 e 255. |
+| T13 · Título | aprovado no Chromium | Alterar para “Longão de domingo na trilha” atualizou imediatamente o SVG canônico exibido e usado no download. |
+| T14 · Métrica oculta | aprovado no Chromium | Ocultar Frequência cardíaca removeu `data-metric="heartRate"` da composição canônica. |
+| T15 · Opcionais ausentes | aprovado | Regressão existente confirma ausência de FC média e Elevação quando não fornecidas. |
+| T16 · Estado imutável | aprovado | Regressão percorre Transparente, Story e Feed e confirma que dados e aparência não sofrem mutação. |
+| T17 · Regressões anteriores | aprovado localmente | 43/43 testes cobrem pace, validação, fotografia, templates, histórico, rascunhos e exportação. Smoke test abriu Início, Estúdio, Análises, Histórico, Perfil e Entrar. |
+| T18 · Download desktop e móvel | parcial | Downloads reais aprovados no Chromium desktop e em viewport móvel 390 × 844; o PNG móvel resultou em 1080 × 1920. Navegador/aparelho móvel real segue pendente. |
+| T19 · `/estudio` direta | aprovado localmente | Abertura direta respondeu HTTP 200 e carregou “Estúdio de figurinhas”. |
+| T20 · Qualidade | aprovado localmente | `npm test`, `npm run lint` e `npm run build` concluídos com sucesso. |
+
+**Método da comparação visual** — a superfície da prévia foi capturada sem guia e borda exclusivas do editor; o PNG baixado foi redimensionado para a mesma área e comparado pixel a pixel. Entre 5,64% e 6,97% dos pixels tiveram diferença luminosa acima de 12/255, principalmente em bordas de texto e formas após reduzir de 1080 px para 239 px. A inspeção dos pares confirmou as mesmas posições, barras, logomarca, escalas, recorte e contraste. O pico isolado por canal não foi usado como aprovação porque antialiasing de bordas pode produzir extremos locais; o erro médio e a inspeção estrutural foram considerados em conjunto.
+
+**Limitações remanescentes** — a comparação automatizada foi executada localmente e não adicionou Playwright/Pillow ao projeto ou ao CI. A rasterização de fontes pode variar entre navegadores que não tenham a mesma fonte disponível. Safari/iOS, Android real, prévia Vercel, toque real, galeria e compartilhamento nativo ainda não foram validados; a correção permanece em validação até esse teste manual.
+
 **Próxima ação** — revisar o PR e a prévia Vercel em celular real: fotografar ou escolher JPEG, ajustar com toque, alternar Story/Feed, baixar, compartilhar e conferir os PNGs na galeria. Só depois dessa evidência marcar a Etapa 3 como concluída.

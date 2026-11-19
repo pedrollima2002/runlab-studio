@@ -1,6 +1,8 @@
-import type { StickerData, StickerMetric } from './preview.tsx'
+import type { StickerData, StickerMetric } from './sticker-data.ts'
 import { accentColors, textColors, type Appearance, type Template } from './studio-config.ts'
 import { calculatePhotoPlacement, normalizePhotoAdjustments, type PhotoAdjustments } from './photo.ts'
+
+export type CompositionAppearance = Pick<Appearance, 'template' | 'accentColor' | 'textColor' | 'layout' | 'mode'>
 
 export const exportFormats = ['transparent', 'story', 'feed'] as const
 export type ExportFormat = typeof exportFormats[number]
@@ -90,13 +92,13 @@ export function buildExportFilename(distance: string, format: ExportFormat): str
 }
 
 function textLines(lines: string[], x: number, y: number, size: number, color: string, anchor = 'start'): string {
-  return `<text x="${x}" y="${y}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="${size}" font-weight="750" text-anchor="${anchor}">${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : Math.round(size * 1.16)}">${escapeXml(line)}</tspan>`).join('')}</text>`
+  return `<text data-role="title" x="${x}" y="${y}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="${size}" font-weight="750" text-anchor="${anchor}">${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : Math.round(size * 1.16)}">${escapeXml(line)}</tspan>`).join('')}</text>`
 }
 
 function brand(x: number, y: number, color: string, accent: string, anchor = 'start'): string {
-  const iconX = anchor === 'end' ? x - 178 : x
+  const iconX = anchor === 'end' ? x - 220 : x
   const textX = anchor === 'end' ? x : x + 46
-  return `<g aria-label="RUNLAB"><circle cx="${iconX + 15}" cy="${y - 11}" r="14" fill="none" stroke="${accent}" stroke-width="7"/><path d="M${iconX + 5} ${y + 12} L${iconX + 27} ${y - 34}" stroke="${accent}" stroke-width="7" stroke-linecap="round"/><text x="${textX}" y="${y}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="5" text-anchor="${anchor}">RUNLAB</text></g>`
+  return `<g aria-label="RUNLAB" data-brand-icon="activity"><g transform="translate(${iconX} ${y - 38}) scale(1.7)" fill="none" stroke="${accent}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></g><text x="${textX}" y="${y}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="5" text-anchor="${anchor}">RUNLAB</text></g>`
 }
 
 function courseArt(x: number, y: number, width: number, height: number, accent: string): string {
@@ -105,26 +107,54 @@ function courseArt(x: number, y: number, width: number, height: number, accent: 
   return `<g transform="translate(${x} ${y}) scale(${scaleX} ${scaleY})" fill="none" stroke="${accent}" stroke-linecap="round" stroke-linejoin="round"><path d="M-35 141 25 115 51 124 70 100 109 91 129 59 170 65 186 43 216 52 260 17 M-23 170 39 140 65 147 88 122 130 111 150 83 182 88 203 69 224 78 269 48 M-45 114 11 89 35 100 55 77 93 70 113 36 155 41 171 18 209 25 245 -4" opacity=".24" stroke-width="1.5"/><path d="m27 125 31-18 24 9 17-28 39-11 13-29 29 4 17 19 27-25" stroke-width="3.5"/><circle cx="27" cy="125" r="5" fill="${accent}" stroke="none"/><circle cx="224" cy="46" r="6" fill="${accent}" stroke="none"/></g>`
 }
 
-function metricGrid(metrics: StickerMetric[], x: number, y: number, width: number, color: string, accent: string, template: Template, compact: boolean): string {
-  const count = Math.max(metrics.length, 1)
-  const columns = template === 'Clean' ? 1 : Math.min(compact ? 3 : 2, count)
-  const rows = Math.ceil(count / columns)
-  const columnWidth = width / columns
-  const rowHeight = compact ? 150 : Math.min(205, 530 / Math.max(rows, 1))
+function metricGrid(
+  metrics: StickerMetric[],
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+  accent: string,
+  template: Template,
+  layout: CompositionAppearance['layout'],
+  compact: boolean,
+): string {
+  if (template === 'Clean') {
+    const rowHeight = compact ? 116 : 112
+    return metrics.map((metric, index) => {
+      const metricY = y + index * rowHeight
+      const value = `${escapeXml(metric.value)}${metric.unit ? ` <tspan font-size="22" opacity=".68">${escapeXml(metric.unit)}</tspan>` : ''}`
+      return `<g data-metric="${metric.key}" data-divider="horizontal"><text data-role="metric-label" x="${x}" y="${metricY}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="26">${escapeXml(metric.label)}</text><text data-role="metric-value" x="${x + width}" y="${metricY + 50}" fill="${color}" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="850" text-anchor="end">${value}</text><path d="M${x} ${metricY + 82} H${x + width}" stroke="${color}" opacity=".22"/></g>`
+    }).join('')
+  }
+
+  const minimal = template === 'Minimal'
+  const rowHeight = compact ? 142 : 178
+  const columnWidth = width / 2
+  const distanceIsFull = metrics[0]?.key === 'distance' && (minimal || layout === 'featured')
 
   return metrics.map((metric, index) => {
-    const column = index % columns
-    const row = Math.floor(index / columns)
-    const metricX = x + column * columnWidth
+    const adjustedIndex = distanceIsFull && index > 0 ? index - 1 : index
+    const full = distanceIsFull && index === 0
+    const column = full ? 0 : adjustedIndex % 2
+    const row = full ? 0 : (distanceIsFull ? 1 : 0) + Math.floor(adjustedIndex / 2)
+    const cellX = x + column * columnWidth
+    const cellWidth = full ? width : columnWidth
     const metricY = y + row * rowHeight
-    const featured = metric.key === 'distance' && template === 'Performance'
-    const valueColor = featured ? accent : color
-    const valueSize = featured ? (compact ? 66 : 78) : (compact ? 51 : 59)
-    const unitX = metricX + Math.min(columnWidth - 20, metric.value.length * valueSize * .58 + 8)
-    const divider = template === 'Clean'
-      ? `<path d="M${metricX} ${metricY + 105} H${metricX + columnWidth - 12}" stroke="${color}" opacity=".22"/>`
-      : `<path d="M${metricX} ${metricY - 30} H${metricX + columnWidth - 24}" stroke="${accent}" stroke-width="5"/>`
-    return `<g>${divider}<text x="${metricX}" y="${metricY}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="27">${escapeXml(metric.label)}</text><text x="${metricX}" y="${metricY + 66}" fill="${valueColor}" font-family="Inter, Arial, sans-serif" font-size="${valueSize}" font-weight="850">${escapeXml(metric.value)}</text>${metric.unit ? `<text x="${unitX}" y="${metricY + 66}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="650">${escapeXml(metric.unit)}</text>` : ''}</g>`
+    const centered = layout === 'centered'
+    const contentX = centered ? cellX + cellWidth / 2 : cellX + (minimal ? 26 : 0)
+    const anchor = centered ? 'middle' : 'start'
+    const valueColor = template === 'Performance' && metric.key === 'distance' ? accent : color
+    const valueSize = template === 'Performance' && metric.key === 'distance' ? (compact ? 66 : 72) : (compact ? 49 : 57)
+    const divider = minimal
+      ? centered
+        ? `<path d="M${cellX + 12} ${metricY - 30} H${cellX + cellWidth - 28}" stroke="${accent}" stroke-width="6"/>`
+        : `<path d="M${cellX + 3} ${metricY - 24} V${metricY + 92}" stroke="${accent}" stroke-width="6"/>`
+      : metric.key === 'distance' && layout === 'featured'
+        ? `<path d="M${cellX} ${metricY + 105} H${cellX + cellWidth - 24}" stroke="${color}" opacity=".25"/>`
+        : ''
+    const unit = metric.unit ? `<text data-role="metric-unit" x="${contentX}" y="${metricY + 104}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="${anchor}">${escapeXml(metric.unit)}</text>` : ''
+    const dividerOrientation = minimal ? (centered ? 'horizontal' : 'vertical') : metric.key === 'distance' && layout === 'featured' ? 'horizontal' : 'none'
+    return `<g data-metric="${metric.key}" data-divider="${dividerOrientation}">${divider}<text data-role="metric-label" x="${contentX}" y="${metricY}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="26" text-anchor="${anchor}">${escapeXml(metric.label)}</text><text data-role="metric-value" x="${contentX}" y="${metricY + 63}" fill="${valueColor}" font-family="Inter, Arial, sans-serif" font-size="${valueSize}" font-weight="850" text-anchor="${anchor}">${escapeXml(metric.value)}</text>${unit}</g>`
   }).join('')
 }
 
@@ -135,7 +165,7 @@ function background(template: Template, width: number, height: number, accent: s
 
 export function createExportSvg(
   data: StickerData,
-  appearance: Appearance,
+  appearance: CompositionAppearance,
   format: ExportFormat,
   options: { hasPhoto?: boolean } = {},
 ): SvgPlan {
@@ -154,15 +184,15 @@ export function createExportSvg(
   if (template === 'Minimal') {
     const titleY = compact ? 350 : 620
     const metricsY = compact ? 650 : 1020
-    content = `${brand(margin, compact ? 125 : 270, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 220)}" width="180" height="12" rx="6" fill="${accent}"/>`
+    content = `${brand(margin, compact ? 125 : 270, color, accent)}${textLines(titleLines, appearance.layout === 'centered' ? width / 2 : margin, titleY, compact ? 67 : 76, color, appearance.layout === 'centered' ? 'middle' : 'start')}${data.date ? `<text x="${appearance.layout === 'centered' ? width / 2 : margin}" y="${titleY + 118}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28" text-anchor="${appearance.layout === 'centered' ? 'middle' : 'start'}">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}<rect x="${margin}" y="${height - (compact ? 95 : 220)}" width="180" height="12" rx="6" fill="${accent}"/>`
   } else if (template === 'Clean') {
     const courseY = compact ? 300 : 520
     const metricsY = compact ? 680 : 1120
-    content = `${textLines(titleLines, margin, compact ? 150 : 280, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 430}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 270}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, compact)}${brand(width - margin, height - (compact ? 72 : 240), color, accent, 'end')}`
+    content = `${textLines(titleLines, margin, compact ? 150 : 280, compact ? 61 : 70, color)}${data.date ? `<text x="${margin}" y="${compact ? 300 : 430}" fill="${color}" opacity=".68" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}<text x="${width - margin}" y="${compact ? 125 : 270}" fill="${accent}" font-family="Inter, Arial, sans-serif" font-size="27" font-weight="900" letter-spacing="5" text-anchor="end">RUNLAB</text>${courseArt(margin, courseY, width - margin * 2, compact ? 270 : 390, accent)}${metricGrid(data.metrics, margin, metricsY, width - margin * 2, color, accent, template, appearance.layout, compact)}${brand(width - margin, height - (compact ? 72 : 240), color, accent, 'end')}`
   } else {
     const courseY = compact ? 180 : 330
     const panelY = compact ? 520 : 900
-    content = `${brand(margin, compact ? 115 : 270, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 420, accent)}<path d="M${margin} ${panelY} V${height - (compact ? margin : 220)}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, compact)}`
+    content = `${brand(margin, compact ? 115 : 270, color, accent)}${courseArt(margin, courseY, width - margin * 2, compact ? 300 : 420, accent)}<path d="M${margin} ${panelY} V${height - (compact ? margin : 220)}" stroke="${accent}" stroke-width="9"/>${textLines(titleLines, margin + 40, panelY + 90, compact ? 60 : 68, color)}${data.date ? `<text x="${margin + 40}" y="${panelY + (titleLines.length > 1 ? 245 : 170)}" fill="${color}" opacity=".72" font-family="Inter, Arial, sans-serif" font-size="28">${escapeXml(data.date)}</text>` : ''}${metricGrid(data.metrics, margin + 40, panelY + (titleLines.length > 1 ? 365 : 290), width - margin * 2 - 60, color, accent, template, appearance.layout, compact)}`
   }
 
   return {

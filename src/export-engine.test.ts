@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { buildExportFilename, createExportSvg, exportFormatDetails, wrapExportText } from './export-engine.ts'
 import { createDefaultEditorState } from './studio-config.ts'
-import type { StickerData } from './preview.tsx'
+import type { StickerData } from './sticker-data.ts'
 
 const data: StickerData = {
   title: 'Corrida de São João',
@@ -50,6 +50,35 @@ describe('planejamento da exportação', () => {
       state.appearance.template = template
       assert.match(createExportSvg(data, state.appearance, 'feed').svg, /RUNLAB/)
     }
+  })
+
+  it('usa a composição canônica do Minimal na prévia e no PNG', () => {
+    const state = createDefaultEditorState()
+    state.appearance.template = 'Minimal'
+    state.appearance.layout = 'featured'
+    const svg = createExportSvg(data, state.appearance, 'story').svg
+
+    assert.match(svg, /data-brand-icon="activity"/)
+    assert.match(svg, /d="M22 12h-4l-3 9L9 3l-3 9H2"/)
+    assert.match(svg, /data-metric="distance"/)
+    assert.match(svg, /data-divider="vertical"/)
+    assert.match(svg, /data-role="title"[^>]*font-size="76"/)
+    assert.match(svg, /data-role="metric-value"[^>]*font-size="57"/)
+    assert.match(svg, /data-role="metric-unit"[^>]*font-size="22"/)
+  })
+
+  it('preserva as regras visuais próprias de cada template', () => {
+    const state = createDefaultEditorState()
+
+    state.appearance.template = 'Performance'
+    const performance = createExportSvg(data, state.appearance, 'feed').svg
+    assert.match(performance, /data-metric="distance"/)
+    assert.match(performance, /data-divider="horizontal"/)
+
+    state.appearance.template = 'Clean'
+    const clean = createExportSvg(data, state.appearance, 'feed').svg
+    assert.match(clean, /data-divider="horizontal"/)
+    assert.match(clean, /data-role="metric-value"/)
   })
 
   it('respeita cor, organização e somente as métricas recebidas', () => {
